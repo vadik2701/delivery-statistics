@@ -261,7 +261,7 @@ select:focus {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 890px;
+  min-width: 980px;
 }
 
 th,
@@ -284,8 +284,8 @@ td {
   font-weight: 650;
 }
 
-td:nth-child(7),
-td:nth-child(9) {
+td:nth-child(8),
+td:nth-child(10) {
   font-weight: 900;
 }
 

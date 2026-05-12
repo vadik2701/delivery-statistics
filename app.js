@@ -110,10 +110,12 @@ function createExampleTrips() {
       driver: "Андрій",
       vehicle: "Renault Kangoo AA1234AA",
       store: "Сільпо Оболонь",
+      route: "Склад - Сільпо Оболонь",
       kmStart: 124500,
       kmEnd: 124586,
       deliveries: 7,
       rate: defaultRate,
+      manualAmount: null,
       note: "Приклад",
     },
     {
@@ -122,10 +124,12 @@ function createExampleTrips() {
       driver: "Сергій",
       vehicle: "Volkswagen Caddy BB5678BB",
       store: "АТБ Позняки",
+      route: "Склад - АТБ Позняки",
       kmStart: 88210,
       kmEnd: 88264,
       deliveries: 5,
       rate: defaultRate,
+      manualAmount: null,
       note: "",
     },
   ];
@@ -138,10 +142,12 @@ function normalizeTrip(trip) {
     driver: String(trip.driver || "").trim(),
     vehicle: String(trip.vehicle || "Без авто").trim(),
     store: String(trip.store || "").trim(),
-    kmStart: Number(trip.kmStart || 0),
-    kmEnd: Number(trip.kmEnd || 0),
+    route: String(trip.route || "").trim(),
+    kmStart: optionalNumber(trip.kmStart),
+    kmEnd: optionalNumber(trip.kmEnd),
     deliveries: Number(trip.deliveries || 0),
     rate: Number(trip.rate || defaultRate),
+    manualAmount: optionalNumber(trip.manualAmount),
     note: String(trip.note || "").trim(),
   };
 }
@@ -315,12 +321,37 @@ function numberValue(selector) {
   return Number(document.querySelector(selector).value || 0);
 }
 
+function optionalNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function optionalNumberValue(selector) {
+  return optionalNumber(document.querySelector(selector).value);
+}
+
 function tripKm(trip) {
+  if (trip.kmStart === null || trip.kmEnd === null) {
+    return null;
+  }
+
   return Math.max(0, Number(trip.kmEnd) - Number(trip.kmStart));
 }
 
 function tripMoney(trip) {
+  if (trip.manualAmount !== null && trip.manualAmount !== undefined) {
+    return Number(trip.manualAmount);
+  }
+
   return Number(trip.deliveries) * Number(trip.rate);
+}
+
+function formatKm(value) {
+  return value === null ? "Очікує" : `${value} км`;
 }
 
 function formatMoney(value) {
@@ -337,6 +368,7 @@ function getVisibleTrips() {
       trip.driver.toLowerCase().includes(queryText) ||
       trip.vehicle.toLowerCase().includes(queryText) ||
       trip.store.toLowerCase().includes(queryText) ||
+      trip.route.toLowerCase().includes(queryText) ||
       trip.note.toLowerCase().includes(queryText);
     const matchesMonth = !month || trip.date.startsWith(month);
     return matchesQuery && matchesMonth;
@@ -358,7 +390,7 @@ function summarizeBy(tripsToSummarize, key) {
 
     current.trips += 1;
     current.deliveries += Number(trip.deliveries);
-    current.km += tripKm(trip);
+    current.km += tripKm(trip) || 0;
     current.money += tripMoney(trip);
     result.set(name, current);
   });
@@ -476,14 +508,15 @@ function render() {
     cells[1].textContent = trip.driver;
     cells[2].textContent = trip.vehicle;
     cells[3].textContent = trip.store;
-    cells[4].textContent = trip.kmStart;
-    cells[5].textContent = trip.kmEnd;
-    cells[6].textContent = `${tripKm(trip)} км`;
-    cells[7].textContent = trip.deliveries;
-    cells[8].textContent = formatMoney(tripMoney(trip));
+    cells[4].textContent = trip.route || "-";
+    cells[5].textContent = trip.kmStart ?? "-";
+    cells[6].textContent = trip.kmEnd ?? "-";
+    cells[7].textContent = formatKm(tripKm(trip));
+    cells[8].textContent = trip.deliveries;
+    cells[9].textContent = formatMoney(tripMoney(trip));
 
     if (trip.note) {
-      cells[3].title = trip.note;
+      cells[4].title = trip.note;
     }
 
     editButton.addEventListener("click", () => startEdit(trip.id));
@@ -492,7 +525,7 @@ function render() {
     rows.append(fragment);
   });
 
-  const totalKm = visibleTrips.reduce((sum, trip) => sum + tripKm(trip), 0);
+  const totalKm = visibleTrips.reduce((sum, trip) => sum + (tripKm(trip) || 0), 0);
   const totalDeliveries = visibleTrips.reduce((sum, trip) => sum + Number(trip.deliveries), 0);
   const totalMoney = visibleTrips.reduce((sum, trip) => sum + tripMoney(trip), 0);
 
@@ -509,12 +542,14 @@ function render() {
 }
 
 function updateLiveCalc() {
-  const kmStart = numberValue("#kmStart");
-  const kmEnd = numberValue("#kmEnd");
+  const kmStart = optionalNumberValue("#kmStart");
+  const kmEnd = optionalNumberValue("#kmEnd");
   const deliveries = numberValue("#deliveries");
   const rate = numberValue("#rate");
-  const km = Math.max(0, kmEnd - kmStart);
-  liveCalc.textContent = `${km} км | ${formatMoney(deliveries * rate)}`;
+  const manualAmount = optionalNumberValue("#manualAmount");
+  const km = kmStart !== null && kmEnd !== null ? Math.max(0, kmEnd - kmStart) : null;
+  const money = manualAmount !== null ? manualAmount : deliveries * rate;
+  liveCalc.textContent = `${formatKm(km)} | ${formatMoney(money)}`;
 }
 
 function readForm() {
@@ -524,10 +559,12 @@ function readForm() {
     driver: form.driver.value.trim(),
     vehicle: form.vehicle.value.trim(),
     store: form.store.value.trim(),
-    kmStart: numberValue("#kmStart"),
-    kmEnd: numberValue("#kmEnd"),
+    route: form.route.value.trim(),
+    kmStart: optionalNumberValue("#kmStart"),
+    kmEnd: optionalNumberValue("#kmEnd"),
     deliveries: numberValue("#deliveries"),
     rate: numberValue("#rate"),
+    manualAmount: optionalNumberValue("#manualAmount"),
     note: form.note.value.trim(),
   };
 }
@@ -559,10 +596,12 @@ function startEdit(id) {
   form.driver.value = trip.driver;
   form.vehicle.value = trip.vehicle;
   form.store.value = trip.store;
-  form.kmStart.value = trip.kmStart;
-  form.kmEnd.value = trip.kmEnd;
+  form.route.value = trip.route;
+  form.kmStart.value = trip.kmStart ?? "";
+  form.kmEnd.value = trip.kmEnd ?? "";
   form.deliveries.value = trip.deliveries;
   form.rate.value = trip.rate;
+  form.manualAmount.value = trip.manualAmount ?? "";
   form.note.value = trip.note;
   formTitle.textContent = "Редагування рейсу";
   setStatus("Збережіть зміни або скасуйте редагування.");
@@ -651,17 +690,19 @@ async function deleteDirectoryItem(type, name) {
 }
 
 function exportCsv() {
-  const header = ["Дата", "Водій", "Авто", "Магазин", "Км старт", "Км кінець", "Км", "Доставок", "Ціна", "Сума", "Нотатка"];
+  const header = ["Дата", "Водій", "Авто", "Магазин", "Маршрут", "Км старт", "Км кінець", "Км", "Доставок", "Ціна", "Сума вручну", "Сума", "Нотатка"];
   const lines = getVisibleTrips().map((trip) => [
     trip.date,
     trip.driver,
     trip.vehicle,
     trip.store,
-    trip.kmStart,
-    trip.kmEnd,
-    tripKm(trip),
+    trip.route,
+    trip.kmStart ?? "",
+    trip.kmEnd ?? "",
+    tripKm(trip) ?? "",
     trip.deliveries,
     trip.rate,
+    trip.manualAmount ?? "",
     tripMoney(trip),
     trip.note,
   ]);
@@ -685,7 +726,7 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const trip = readForm();
 
-  if (trip.kmEnd < trip.kmStart) {
+  if (trip.kmStart !== null && trip.kmEnd !== null && trip.kmEnd < trip.kmStart) {
     form.kmEnd.setCustomValidity("Кілометраж в кінці має бути більший або рівний стартовому.");
     form.kmEnd.reportValidity();
     return;

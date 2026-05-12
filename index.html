@@ -8,7 +8,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon.svg" />
-    <link rel="stylesheet" href="styles.css?v=5" />
+    <link rel="stylesheet" href="styles.css?v=6" />
   </head>
   <body>
     <main class="app">
@@ -72,14 +72,19 @@
             <select id="store" name="store" required></select>
           </label>
 
+          <label>
+            Маршрут
+            <input id="route" name="route" type="text" placeholder="Наприклад: Склад - Сільпо Оболонь" />
+          </label>
+
           <div class="split">
             <label>
               Км на старті
-              <input id="kmStart" name="kmStart" type="text" inputmode="numeric" pattern="[0-9]*" required />
+              <input id="kmStart" name="kmStart" type="text" inputmode="numeric" pattern="[0-9]*" />
             </label>
             <label>
               Км в кінці
-              <input id="kmEnd" name="kmEnd" type="text" inputmode="numeric" pattern="[0-9]*" required />
+              <input id="kmEnd" name="kmEnd" type="text" inputmode="numeric" pattern="[0-9]*" />
             </label>
           </div>
 
@@ -93,6 +98,11 @@
               <input id="rate" name="rate" type="text" inputmode="numeric" pattern="[0-9]*" value="700" required />
             </label>
           </div>
+
+          <label>
+            Сума вручну
+            <input id="manualAmount" name="manualAmount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Якщо порожньо - рахує автоматично" />
+          </label>
 
           <label>
             Нотатка
@@ -125,6 +135,7 @@
                   <th>Водій</th>
                   <th>Авто</th>
                   <th>Магазин</th>
+                  <th>Маршрут</th>
                   <th>Старт</th>
                   <th>Кінець</th>
                   <th>Км</th>
@@ -215,6 +226,7 @@
         <td data-label="Водій"></td>
         <td data-label="Авто"></td>
         <td data-label="Магазин"></td>
+        <td data-label="Маршрут"></td>
         <td data-label="Старт"></td>
         <td data-label="Кінець"></td>
         <td data-label="Км"></td>
@@ -229,7 +241,7 @@
       </tr>
     </template>
 
-    <script type="module" src="app.js?v=5"></script>
+    <script type="module" src="app.js?v=6"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
