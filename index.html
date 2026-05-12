@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f766e" />
+    <title>Статистика доставок</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="stylesheet" href="styles.css?v=4" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Журнал рейсів</p>
+          <h1>Статистика доставок</h1>
+        </div>
+        <div class="actions">
+          <button class="ghost-button" id="exportCsv" type="button" title="Експорт CSV">CSV</button>
+          <button class="danger-button" id="clearAll" type="button" title="Очистити всі записи">Очистити</button>
+        </div>
+      </header>
+
+      <section class="summary-grid" aria-label="Підсумки">
+        <article class="metric">
+          <span>Рейсів</span>
+          <strong id="totalTrips">0</strong>
+        </article>
+        <article class="metric">
+          <span>Доставок</span>
+          <strong id="totalDeliveries">0</strong>
+        </article>
+        <article class="metric">
+          <span>Кілометрів</span>
+          <strong id="totalKm">0 км</strong>
+        </article>
+        <article class="metric">
+          <span>Сума</span>
+          <strong id="totalMoney">0 грн</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <form class="entry-form" id="tripForm">
+          <div class="form-head">
+            <div>
+              <h2 id="formTitle">Новий рейс</h2>
+              <p id="formHint">Дані зберігаються у цьому браузері.</p>
+            </div>
+            <span id="liveCalc">0 км | 0 грн</span>
+          </div>
+
+          <label>
+            Дата
+            <input id="date" name="date" type="date" required />
+          </label>
+
+          <label>
+            Водій
+            <select id="driver" name="driver" required></select>
+          </label>
+
+          <label>
+            Авто
+            <select id="vehicle" name="vehicle" required></select>
+          </label>
+
+          <label>
+            Магазин
+            <select id="store" name="store" required></select>
+          </label>
+
+          <div class="split">
+            <label>
+              Км на старті
+              <input id="kmStart" name="kmStart" type="text" inputmode="numeric" pattern="[0-9]*" required />
+            </label>
+            <label>
+              Км в кінці
+              <input id="kmEnd" name="kmEnd" type="text" inputmode="numeric" pattern="[0-9]*" required />
+            </label>
+          </div>
+
+          <div class="split">
+            <label>
+              Доставок
+              <input id="deliveries" name="deliveries" type="text" inputmode="numeric" pattern="[0-9]*" required />
+            </label>
+            <label>
+              Ціна за доставку
+              <input id="rate" name="rate" type="text" inputmode="numeric" pattern="[0-9]*" value="700" required />
+            </label>
+          </div>
+
+          <label>
+            Нотатка
+            <input id="note" name="note" type="text" placeholder="Необов'язково" />
+          </label>
+
+          <div class="form-actions">
+            <button class="primary-button" id="submitButton" type="submit">Додати рейс</button>
+            <button class="ghost-button is-hidden" id="cancelEdit" type="button">Скасувати</button>
+          </div>
+        </form>
+
+        <section class="table-panel">
+          <div class="filters">
+            <label>
+              Пошук
+              <input id="search" type="search" placeholder="Водій, авто або магазин" />
+            </label>
+            <label>
+              Місяць
+              <input id="monthFilter" type="month" />
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Водій</th>
+                  <th>Авто</th>
+                  <th>Магазин</th>
+                  <th>Старт</th>
+                  <th>Кінець</th>
+                  <th>Км</th>
+                  <th>Доставок</th>
+                  <th>Сума</th>
+                  <th>Дії</th>
+                </tr>
+              </thead>
+              <tbody id="tripRows"></tbody>
+            </table>
+          </div>
+
+          <div class="empty-state" id="emptyState">
+            <strong>Записів ще немає</strong>
+            <span>Додайте перший рейс або змініть фільтр.</span>
+          </div>
+        </section>
+      </section>
+
+      <section class="reports" aria-label="Звіти">
+        <article class="report-panel">
+          <div class="report-head">
+            <h2>По водіях</h2>
+            <span id="driverReportCount">0</span>
+          </div>
+          <div id="driverReport" class="report-list"></div>
+        </article>
+
+        <article class="report-panel">
+          <div class="report-head">
+            <h2>По магазинах</h2>
+            <span id="storeReportCount">0</span>
+          </div>
+          <div id="storeReport" class="report-list"></div>
+        </article>
+
+        <article class="report-panel">
+          <div class="report-head">
+            <h2>По авто</h2>
+            <span id="vehicleReportCount">0</span>
+          </div>
+          <div id="vehicleReport" class="report-list"></div>
+        </article>
+      </section>
+
+      <section class="directories" aria-label="Довідники">
+        <article class="directory-panel">
+          <div class="directory-head">
+            <h2>Водії</h2>
+            <span id="driversCount">0</span>
+          </div>
+          <form class="directory-form" id="driverDirectoryForm">
+            <input id="driverName" type="text" placeholder="Новий водій" required />
+            <button class="primary-button" type="submit">Додати</button>
+          </form>
+          <div id="driversList" class="directory-list"></div>
+        </article>
+
+        <article class="directory-panel">
+          <div class="directory-head">
+            <h2>Авто</h2>
+            <span id="vehiclesCount">0</span>
+          </div>
+          <form class="directory-form" id="vehicleDirectoryForm">
+            <input id="vehicleName" type="text" placeholder="Наприклад: Renault Kangoo AA1234AA" required />
+            <button class="primary-button" type="submit">Додати</button>
+          </form>
+          <div id="vehiclesList" class="directory-list"></div>
+        </article>
+
+        <article class="directory-panel">
+          <div class="directory-head">
+            <h2>Магазини</h2>
+            <span id="storesCount">0</span>
+          </div>
+          <form class="directory-form" id="storeDirectoryForm">
+            <input id="storeName" type="text" placeholder="Наприклад: Сільпо Оболонь" required />
+            <button class="primary-button" type="submit">Додати</button>
+          </form>
+          <div id="storesList" class="directory-list"></div>
+        </article>
+      </section>
+    </main>
+
+    <template id="rowTemplate">
+      <tr>
+        <td data-label="Дата"></td>
+        <td data-label="Водій"></td>
+        <td data-label="Авто"></td>
+        <td data-label="Магазин"></td>
+        <td data-label="Старт"></td>
+        <td data-label="Кінець"></td>
+        <td data-label="Км"></td>
+        <td data-label="Доставок"></td>
+        <td data-label="Сума"></td>
+        <td data-label="Дії">
+          <div class="row-actions">
+            <button class="small-button edit-row" type="button" title="Редагувати">Ред.</button>
+            <button class="small-button delete-row" type="button" title="Видалити">×</button>
+          </div>
+        </td>
+      </tr>
+    </template>
+
+    <script src="app.js?v=4"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("service-worker.js");
+        });
+      }
+    </script>
+  </body>
+</html>
