@@ -2,6 +2,7 @@
   "name": "delivery-statistics",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "start": "python -m http.server 4173",
     "check": "node --check app.js"

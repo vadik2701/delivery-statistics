@@ -1,13 +1,55 @@
-const storageKey = "delivery-trips-v3";
-const legacyStorageKeys = ["delivery-trips-v2", "delivery-trips-v1"];
-const driversKey = "delivery-drivers-v1";
-const vehiclesKey = "delivery-vehicles-v1";
-const storesKey = "delivery-stores-v1";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  getFirestore,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  writeBatch,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBbbkngVD_ReaCA9sOhL5hSmxpDu2dZJ0w",
+  authDomain: "delivery-statistics.firebaseapp.com",
+  projectId: "delivery-statistics",
+  storageBucket: "delivery-statistics.firebasestorage.app",
+  messagingSenderId: "739051231722",
+  appId: "1:739051231722:web:927a5b615faa06e14ffa93",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const legacyTripKeys = ["delivery-trips-v3", "delivery-trips-v2", "delivery-trips-v1"];
+const legacyDirectoryKeys = {
+  driver: "delivery-drivers-v1",
+  vehicle: "delivery-vehicles-v1",
+  store: "delivery-stores-v1",
+};
 const defaultRate = 700;
+
+const defaults = {
+  drivers: ["Андрій", "Сергій"],
+  vehicles: ["Renault Kangoo AA1234AA", "Volkswagen Caddy BB5678BB"],
+  stores: ["Сільпо Оболонь", "АТБ Позняки"],
+};
 
 const moneyFormatter = new Intl.NumberFormat("uk-UA", {
   maximumFractionDigits: 0,
 });
+
+const refs = {
+  trips: collection(db, "trips"),
+  drivers: collection(db, "drivers"),
+  vehicles: collection(db, "vehicles"),
+  stores: collection(db, "stores"),
+};
 
 const form = document.querySelector("#tripForm");
 const rows = document.querySelector("#tripRows");
@@ -46,11 +88,15 @@ const totals = {
   money: document.querySelector("#totalMoney"),
 };
 
-let trips = loadTrips();
-let drivers = loadDirectory(driversKey, ["Андрій", "Сергій"], "driver");
-let vehicles = loadDirectory(vehiclesKey, ["Renault Kangoo AA1234AA", "Volkswagen Caddy BB5678BB"], "vehicle");
-let stores = loadDirectory(storesKey, ["Сільпо Оболонь", "АТБ Позняки"], "store");
+let trips = [];
+let driverDocs = [];
+let vehicleDocs = [];
+let storeDocs = [];
+let drivers = [];
+let vehicles = [];
+let stores = [];
 let editingId = null;
+let hasLoadedRemote = false;
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -100,33 +146,39 @@ function normalizeTrip(trip) {
   };
 }
 
-function loadTrips() {
-  const saved = [storageKey, ...legacyStorageKeys].map((key) => localStorage.getItem(key)).find(Boolean);
-
-  if (saved) {
-    try {
-      return JSON.parse(saved).map(normalizeTrip);
-    } catch {
-      [storageKey, ...legacyStorageKeys].forEach((key) => localStorage.removeItem(key));
-    }
-  }
-
-  return createExampleTrips();
+function tripPayload(trip) {
+  const normalized = normalizeTrip(trip);
+  const { id, ...payload } = normalized;
+  return {
+    ...payload,
+    updatedAt: serverTimestamp(),
+  };
 }
 
-function loadDirectory(key, fallback, tripField) {
-  const saved = localStorage.getItem(key);
-  const fromTrips = trips.map((trip) => trip[tripField]).filter(Boolean);
-
-  if (saved) {
-    try {
-      return uniqueNames([...JSON.parse(saved), ...fromTrips]);
-    } catch {
-      localStorage.removeItem(key);
-    }
+function loadLegacyTrips() {
+  const saved = legacyTripKeys.map((key) => localStorage.getItem(key)).find(Boolean);
+  if (!saved) {
+    return [];
   }
 
-  return uniqueNames([...fallback, ...fromTrips]);
+  try {
+    return JSON.parse(saved).map(normalizeTrip);
+  } catch {
+    return [];
+  }
+}
+
+function loadLegacyDirectory(type) {
+  const saved = localStorage.getItem(legacyDirectoryKeys[type]);
+  if (!saved) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(saved).map((name) => String(name || "").trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 function uniqueNames(values) {
@@ -135,14 +187,128 @@ function uniqueNames(values) {
   );
 }
 
-function saveTrips() {
-  localStorage.setItem(storageKey, JSON.stringify(trips));
+function directoryCollection(type) {
+  if (type === "driver") {
+    return refs.drivers;
+  }
+  if (type === "vehicle") {
+    return refs.vehicles;
+  }
+  return refs.stores;
 }
 
-function saveDirectories() {
-  localStorage.setItem(driversKey, JSON.stringify(drivers));
-  localStorage.setItem(vehiclesKey, JSON.stringify(vehicles));
-  localStorage.setItem(storesKey, JSON.stringify(stores));
+function directoryDocs(type) {
+  if (type === "driver") {
+    return driverDocs;
+  }
+  if (type === "vehicle") {
+    return vehicleDocs;
+  }
+  return storeDocs;
+}
+
+function directoryId(name) {
+  return encodeURIComponent(name.trim().toLowerCase()).replaceAll(".", "%2E");
+}
+
+async function setDirectoryItem(type, name) {
+  const cleanName = name.trim();
+  if (!cleanName) {
+    return;
+  }
+
+  await setDoc(
+    doc(directoryCollection(type), directoryId(cleanName)),
+    {
+      name: cleanName,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+async function seedInitialData() {
+  setStatus("Підключаю Firebase...");
+  const tripSnapshot = await getDocs(refs.trips);
+  const remoteTrips = tripSnapshot.docs.map((item) => normalizeTrip({ id: item.id, ...item.data() }));
+  const legacyTrips = loadLegacyTrips();
+  const seedTrips = remoteTrips.length ? remoteTrips : legacyTrips.length ? legacyTrips : createExampleTrips();
+
+  if (!remoteTrips.length) {
+    const batch = writeBatch(db);
+    seedTrips.forEach((trip) => {
+      const id = trip.id && !trip.id.includes("/") ? trip.id : crypto.randomUUID();
+      batch.set(doc(refs.trips, id), {
+        ...tripPayload({ ...trip, id }),
+        createdAt: serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  }
+
+  await Promise.all([
+    ...uniqueNames([...defaults.drivers, ...loadLegacyDirectory("driver"), ...seedTrips.map((trip) => trip.driver)]).map((name) =>
+      setDirectoryItem("driver", name),
+    ),
+    ...uniqueNames([...defaults.vehicles, ...loadLegacyDirectory("vehicle"), ...seedTrips.map((trip) => trip.vehicle)]).map((name) =>
+      setDirectoryItem("vehicle", name),
+    ),
+    ...uniqueNames([...defaults.stores, ...loadLegacyDirectory("store"), ...seedTrips.map((trip) => trip.store)]).map((name) =>
+      setDirectoryItem("store", name),
+    ),
+  ]);
+}
+
+function subscribeToFirebase() {
+  onSnapshot(
+    query(refs.trips, orderBy("date", "desc")),
+    (snapshot) => {
+      trips = snapshot.docs.map((item) => normalizeTrip({ id: item.id, ...item.data() }));
+      hasLoadedRemote = true;
+      setStatus("Підключено до Firebase. Дані спільні для телефону і ноутбука.");
+      render();
+    },
+    showFirebaseError,
+  );
+
+  onSnapshot(
+    query(refs.drivers, orderBy("name")),
+    (snapshot) => {
+      driverDocs = snapshot.docs.map((item) => ({ id: item.id, name: item.data().name }));
+      drivers = uniqueNames(driverDocs.map((item) => item.name));
+      render();
+    },
+    showFirebaseError,
+  );
+
+  onSnapshot(
+    query(refs.vehicles, orderBy("name")),
+    (snapshot) => {
+      vehicleDocs = snapshot.docs.map((item) => ({ id: item.id, name: item.data().name }));
+      vehicles = uniqueNames(vehicleDocs.map((item) => item.name));
+      render();
+    },
+    showFirebaseError,
+  );
+
+  onSnapshot(
+    query(refs.stores, orderBy("name")),
+    (snapshot) => {
+      storeDocs = snapshot.docs.map((item) => ({ id: item.id, name: item.data().name }));
+      stores = uniqueNames(storeDocs.map((item) => item.name));
+      render();
+    },
+    showFirebaseError,
+  );
+}
+
+function showFirebaseError(error) {
+  console.error(error);
+  setStatus("Firebase не дав доступ. Перевір Firestore Database і Rules.");
+}
+
+function setStatus(text) {
+  formHint.textContent = text;
 }
 
 function numberValue(selector) {
@@ -162,16 +328,16 @@ function formatMoney(value) {
 }
 
 function getVisibleTrips() {
-  const query = search.value.trim().toLowerCase();
+  const queryText = search.value.trim().toLowerCase();
   const month = monthFilter.value;
 
   return trips.filter((trip) => {
     const matchesQuery =
-      !query ||
-      trip.driver.toLowerCase().includes(query) ||
-      trip.vehicle.toLowerCase().includes(query) ||
-      trip.store.toLowerCase().includes(query) ||
-      trip.note.toLowerCase().includes(query);
+      !queryText ||
+      trip.driver.toLowerCase().includes(queryText) ||
+      trip.vehicle.toLowerCase().includes(queryText) ||
+      trip.store.toLowerCase().includes(queryText) ||
+      trip.note.toLowerCase().includes(queryText);
     const matchesMonth = !month || trip.date.startsWith(month);
     return matchesQuery && matchesMonth;
   });
@@ -236,7 +402,7 @@ function renderOptions(select, items, currentValue) {
   if (!items.length) {
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "Спочатку додайте в довіднику";
+    option.textContent = hasLoadedRemote ? "Спочатку додайте в довіднику" : "Завантаження...";
     select.append(option);
     return;
   }
@@ -260,7 +426,7 @@ function renderDirectory(target, countTarget, items, type) {
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "report-empty";
-    empty.textContent = "Список порожній.";
+    empty.textContent = hasLoadedRemote ? "Список порожній." : "Завантаження...";
     target.append(empty);
     return;
   }
@@ -300,34 +466,31 @@ function render() {
   const visibleTrips = getVisibleTrips();
   rows.innerHTML = "";
 
-  visibleTrips
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .forEach((trip) => {
-      const fragment = rowTemplate.content.cloneNode(true);
-      const cells = fragment.querySelectorAll("td");
-      const editButton = fragment.querySelector(".edit-row");
-      const deleteButton = fragment.querySelector(".delete-row");
+  visibleTrips.forEach((trip) => {
+    const fragment = rowTemplate.content.cloneNode(true);
+    const cells = fragment.querySelectorAll("td");
+    const editButton = fragment.querySelector(".edit-row");
+    const deleteButton = fragment.querySelector(".delete-row");
 
-      cells[0].textContent = trip.date;
-      cells[1].textContent = trip.driver;
-      cells[2].textContent = trip.vehicle;
-      cells[3].textContent = trip.store;
-      cells[4].textContent = trip.kmStart;
-      cells[5].textContent = trip.kmEnd;
-      cells[6].textContent = `${tripKm(trip)} км`;
-      cells[7].textContent = trip.deliveries;
-      cells[8].textContent = formatMoney(tripMoney(trip));
+    cells[0].textContent = trip.date;
+    cells[1].textContent = trip.driver;
+    cells[2].textContent = trip.vehicle;
+    cells[3].textContent = trip.store;
+    cells[4].textContent = trip.kmStart;
+    cells[5].textContent = trip.kmEnd;
+    cells[6].textContent = `${tripKm(trip)} км`;
+    cells[7].textContent = trip.deliveries;
+    cells[8].textContent = formatMoney(tripMoney(trip));
 
-      if (trip.note) {
-        cells[3].title = trip.note;
-      }
+    if (trip.note) {
+      cells[3].title = trip.note;
+    }
 
-      editButton.addEventListener("click", () => startEdit(trip.id));
-      deleteButton.addEventListener("click", () => deleteTrip(trip.id));
+    editButton.addEventListener("click", () => startEdit(trip.id));
+    deleteButton.addEventListener("click", () => deleteTrip(trip.id));
 
-      rows.append(fragment);
-    });
+    rows.append(fragment);
+  });
 
   const totalKm = visibleTrips.reduce((sum, trip) => sum + tripKm(trip), 0);
   const totalDeliveries = visibleTrips.reduce((sum, trip) => sum + Number(trip.deliveries), 0);
@@ -376,7 +539,6 @@ function resetForm() {
   form.date.value = today();
   form.rate.value = rate;
   formTitle.textContent = "Новий рейс";
-  formHint.textContent = "Дані зберігаються у цьому браузері.";
   submitButton.textContent = "Додати рейс";
   cancelEdit.classList.add("is-hidden");
   renderDirectories();
@@ -403,66 +565,68 @@ function startEdit(id) {
   form.rate.value = trip.rate;
   form.note.value = trip.note;
   formTitle.textContent = "Редагування рейсу";
-  formHint.textContent = "Збережіть зміни або скасуйте редагування.";
+  setStatus("Збережіть зміни або скасуйте редагування.");
   submitButton.textContent = "Зберегти зміни";
   cancelEdit.classList.remove("is-hidden");
   updateLiveCalc();
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function deleteTrip(id) {
+async function deleteTrip(id) {
   if (editingId === id) {
     resetForm();
   }
 
-  trips = trips.filter((item) => item.id !== id);
-  saveTrips();
-  render();
+  await deleteDoc(doc(refs.trips, id));
 }
 
-function addDirectoryItem(type, name) {
-  const cleanName = name.trim();
-  if (!cleanName) {
-    return;
-  }
-
-  if (type === "driver") {
-    drivers = uniqueNames([...drivers, cleanName]);
-  } else if (type === "vehicle") {
-    vehicles = uniqueNames([...vehicles, cleanName]);
-  } else {
-    stores = uniqueNames([...stores, cleanName]);
-  }
-
-  saveDirectories();
-  render();
+async function addDirectoryItem(type, name) {
+  await setDirectoryItem(type, name);
 }
 
-function renameDirectoryItem(type, oldName) {
+async function renameDirectoryItem(type, oldName) {
   const nextName = prompt("Нова назва:", oldName);
   if (!nextName || !nextName.trim()) {
     return;
   }
 
   const cleanName = nextName.trim();
+  const item = directoryDocs(type).find((entry) => entry.name === oldName);
+  const batch = writeBatch(db);
 
-  if (type === "driver") {
-    drivers = uniqueNames(drivers.map((name) => (name === oldName ? cleanName : name)));
-    trips = trips.map((trip) => (trip.driver === oldName ? { ...trip, driver: cleanName } : trip));
-  } else if (type === "vehicle") {
-    vehicles = uniqueNames(vehicles.map((name) => (name === oldName ? cleanName : name)));
-    trips = trips.map((trip) => (trip.vehicle === oldName ? { ...trip, vehicle: cleanName } : trip));
-  } else {
-    stores = uniqueNames(stores.map((name) => (name === oldName ? cleanName : name)));
-    trips = trips.map((trip) => (trip.store === oldName ? { ...trip, store: cleanName } : trip));
+  if (item) {
+    batch.delete(doc(directoryCollection(type), item.id));
   }
+  batch.set(doc(directoryCollection(type), directoryId(cleanName)), {
+    name: cleanName,
+    updatedAt: serverTimestamp(),
+  });
 
-  saveDirectories();
-  saveTrips();
-  render();
+  trips
+    .filter((trip) => {
+      if (type === "driver") {
+        return trip.driver === oldName;
+      }
+      if (type === "vehicle") {
+        return trip.vehicle === oldName;
+      }
+      return trip.store === oldName;
+    })
+    .forEach((trip) => {
+      batch.set(
+        doc(refs.trips, trip.id),
+        {
+          [type]: cleanName,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    });
+
+  await batch.commit();
 }
 
-function deleteDirectoryItem(type, name) {
+async function deleteDirectoryItem(type, name) {
   const isUsed = trips.some((trip) => {
     if (type === "driver") {
       return trip.driver === name;
@@ -480,16 +644,10 @@ function deleteDirectoryItem(type, name) {
     return;
   }
 
-  if (type === "driver") {
-    drivers = drivers.filter((item) => item !== name);
-  } else if (type === "vehicle") {
-    vehicles = vehicles.filter((item) => item !== name);
-  } else {
-    stores = stores.filter((item) => item !== name);
+  const item = directoryDocs(type).find((entry) => entry.name === name);
+  if (item) {
+    await deleteDoc(doc(directoryCollection(type), item.id));
   }
-
-  saveDirectories();
-  render();
 }
 
 function exportCsv() {
@@ -523,7 +681,7 @@ function exportCsv() {
 
 form.addEventListener("input", updateLiveCalc);
 
-form.addEventListener("submit", (event) => {
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const trip = readForm();
 
@@ -534,58 +692,72 @@ form.addEventListener("submit", (event) => {
   }
 
   form.kmEnd.setCustomValidity("");
+  submitButton.disabled = true;
 
-  if (editingId) {
-    trips = trips.map((item) => (item.id === editingId ? trip : item));
-  } else {
-    trips.unshift(trip);
+  try {
+    await Promise.all([
+      setDirectoryItem("driver", trip.driver),
+      setDirectoryItem("vehicle", trip.vehicle),
+      setDirectoryItem("store", trip.store),
+    ]);
+
+    if (editingId) {
+      await setDoc(doc(refs.trips, editingId), tripPayload(trip), { merge: true });
+    } else {
+      await addDoc(refs.trips, {
+        ...tripPayload(trip),
+        createdAt: serverTimestamp(),
+      });
+    }
+
+    resetForm();
+  } catch (error) {
+    showFirebaseError(error);
+  } finally {
+    submitButton.disabled = false;
   }
-
-  drivers = uniqueNames([...drivers, trip.driver]);
-  vehicles = uniqueNames([...vehicles, trip.vehicle]);
-  stores = uniqueNames([...stores, trip.store]);
-  saveDirectories();
-  saveTrips();
-  resetForm();
-  render();
 });
 
-driverDirectoryForm.addEventListener("submit", (event) => {
+driverDirectoryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  addDirectoryItem("driver", driverName.value);
+  await addDirectoryItem("driver", driverName.value);
   driverDirectoryForm.reset();
 });
 
-vehicleDirectoryForm.addEventListener("submit", (event) => {
+vehicleDirectoryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  addDirectoryItem("vehicle", vehicleName.value);
+  await addDirectoryItem("vehicle", vehicleName.value);
   vehicleDirectoryForm.reset();
 });
 
-storeDirectoryForm.addEventListener("submit", (event) => {
+storeDirectoryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  addDirectoryItem("store", storeName.value);
+  await addDirectoryItem("store", storeName.value);
   storeDirectoryForm.reset();
 });
 
 search.addEventListener("input", render);
 monthFilter.addEventListener("input", render);
 cancelEdit.addEventListener("click", resetForm);
-
 document.querySelector("#exportCsv").addEventListener("click", exportCsv);
 
-document.querySelector("#clearAll").addEventListener("click", () => {
-  if (!confirm("Очистити всі записи?")) {
+document.querySelector("#clearAll").addEventListener("click", async () => {
+  if (!confirm("Очистити всі рейси? Довідники водіїв, авто і магазинів залишаться.")) {
     return;
   }
 
-  trips = [];
-  saveTrips();
+  const batch = writeBatch(db);
+  trips.forEach((trip) => batch.delete(doc(refs.trips, trip.id)));
+  await batch.commit();
   resetForm();
-  render();
 });
 
 resetForm();
-saveDirectories();
-saveTrips();
 render();
+
+try {
+  await seedInitialData();
+  subscribeToFirebase();
+} catch (error) {
+  showFirebaseError(error);
+}
