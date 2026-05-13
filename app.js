@@ -4,6 +4,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   getFirestore,
   onSnapshot,
@@ -25,6 +26,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const setupRef = doc(db, "settings", "app");
 
 const legacyTripKeys = ["delivery-trips-v3", "delivery-trips-v2", "delivery-trips-v1"];
 const legacyDirectoryKeys = {
@@ -235,22 +237,39 @@ async function setDirectoryItem(type, name) {
 
 async function seedInitialData() {
   setStatus("Підключаю Firebase...");
+  const setupSnapshot = await getDoc(setupRef);
+
+  if (setupSnapshot.exists() && setupSnapshot.data().initialized) {
+    return;
+  }
+
   const tripSnapshot = await getDocs(refs.trips);
   const remoteTrips = tripSnapshot.docs.map((item) => normalizeTrip({ id: item.id, ...item.data() }));
-  const legacyTrips = loadLegacyTrips();
-  const seedTrips = remoteTrips.length ? remoteTrips : legacyTrips.length ? legacyTrips : createExampleTrips();
 
-  if (!remoteTrips.length) {
-    const batch = writeBatch(db);
-    seedTrips.forEach((trip) => {
-      const id = trip.id && !trip.id.includes("/") ? trip.id : crypto.randomUUID();
-      batch.set(doc(refs.trips, id), {
-        ...tripPayload({ ...trip, id }),
-        createdAt: serverTimestamp(),
-      });
-    });
-    await batch.commit();
+  if (remoteTrips.length) {
+    await setDoc(
+      setupRef,
+      {
+        initialized: true,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return;
   }
+
+  const legacyTrips = loadLegacyTrips();
+  const seedTrips = legacyTrips.length ? legacyTrips : createExampleTrips();
+  const batch = writeBatch(db);
+
+  seedTrips.forEach((trip) => {
+    const id = trip.id && !trip.id.includes("/") ? trip.id : crypto.randomUUID();
+    batch.set(doc(refs.trips, id), {
+      ...tripPayload({ ...trip, id }),
+      createdAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
 
   await Promise.all([
     ...uniqueNames([...defaults.drivers, ...loadLegacyDirectory("driver"), ...seedTrips.map((trip) => trip.driver)]).map((name) =>
@@ -263,6 +282,15 @@ async function seedInitialData() {
       setDirectoryItem("store", name),
     ),
   ]);
+
+  await setDoc(
+    setupRef,
+    {
+      initialized: true,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
 }
 
 function subscribeToFirebase() {
