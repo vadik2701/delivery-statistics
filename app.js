@@ -59,6 +59,7 @@ const rowTemplate = document.querySelector("#rowTemplate");
 const emptyState = document.querySelector("#emptyState");
 const search = document.querySelector("#search");
 const monthFilter = document.querySelector("#monthFilter");
+const printStats = document.querySelector("#printStats");
 const liveCalc = document.querySelector("#liveCalc");
 const formTitle = document.querySelector("#formTitle");
 const formHint = document.querySelector("#formHint");
@@ -541,7 +542,8 @@ function render() {
     cells[6].textContent = trip.kmEnd ?? "-";
     cells[7].textContent = formatKm(tripKm(trip));
     cells[8].textContent = trip.deliveries;
-    cells[9].textContent = formatMoney(tripMoney(trip));
+    cells[9].textContent = formatMoney(Number(trip.rate || 0));
+    cells[10].textContent = formatMoney(tripMoney(trip));
 
     if (trip.note) {
       cells[4].title = trip.note;
@@ -808,6 +810,7 @@ storeDirectoryForm.addEventListener("submit", async (event) => {
 search.addEventListener("input", render);
 monthFilter.addEventListener("input", render);
 cancelEdit.addEventListener("click", resetForm);
+printStats.addEventListener("click", () => window.print());
 document.querySelector("#exportCsv").addEventListener("click", exportCsv);
 
 document.querySelector("#clearAll").addEventListener("click", async () => {

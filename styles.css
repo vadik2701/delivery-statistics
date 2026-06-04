@@ -95,9 +95,16 @@ h2 {
 
 .ghost-button,
 .danger-button,
+.print-button,
 .primary-button,
 .small-button {
   font-weight: 800;
+}
+
+.print-button {
+  padding: 0 16px;
+  color: #ffffff;
+  background: var(--accent);
 }
 
 .ghost-button {
@@ -285,7 +292,8 @@ td {
 }
 
 td:nth-child(8),
-td:nth-child(10) {
+td:nth-child(10),
+td:nth-child(11) {
   font-weight: 900;
 }
 
@@ -557,5 +565,165 @@ td:nth-child(10) {
   .report-name,
   .report-money {
     grid-column: 1 / -1;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  :root {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --ink: #111816;
+    --muted: #49524e;
+    --line: #cfd7d0;
+    --shadow: none;
+    font-size: 11px;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  button,
+  .actions,
+  .entry-form,
+  .directories,
+  .row-actions,
+  th:last-child,
+  td:last-child {
+    display: none !important;
+  }
+
+  .app {
+    width: 100%;
+    padding: 0;
+  }
+
+  .topbar {
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+
+  .eyebrow {
+    color: var(--muted);
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .metric,
+  .table-panel,
+  .report-panel {
+    border-color: var(--line);
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .metric {
+    min-height: 0;
+    padding: 10px 12px;
+  }
+
+  .metric span {
+    margin-bottom: 4px;
+    font-size: 11px;
+  }
+
+  .metric strong {
+    font-size: 20px;
+  }
+
+  .workspace {
+    display: block;
+  }
+
+  .filters {
+    padding: 8px 10px;
+  }
+
+  .filters input {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .table-wrap {
+    overflow: visible;
+  }
+
+  table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  th,
+  td {
+    padding: 6px 5px;
+    font-size: 9px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  th:nth-child(1) {
+    width: 9%;
+  }
+
+  th:nth-child(2),
+  th:nth-child(3),
+  th:nth-child(4) {
+    width: 12%;
+  }
+
+  th:nth-child(5) {
+    width: 10%;
+  }
+
+  th:nth-child(6),
+  th:nth-child(7),
+  th:nth-child(8),
+  th:nth-child(9) {
+    width: 7%;
+  }
+
+  th:nth-child(10),
+  th:nth-child(11) {
+    width: 9%;
+  }
+
+  .reports {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .report-head {
+    padding: 9px 10px;
+  }
+
+  .report-head h2 {
+    font-size: 15px;
+  }
+
+  .report-row {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    gap: 6px;
+    padding: 7px 10px;
+  }
+
+  .report-name,
+  .report-stat,
+  .report-money {
+    font-size: 10px;
   }
 }
