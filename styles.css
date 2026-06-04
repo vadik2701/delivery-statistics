@@ -245,6 +245,10 @@ select:focus {
   display: none !important;
 }
 
+.file-input {
+  display: none;
+}
+
 .table-panel {
   min-width: 0;
   overflow: hidden;
