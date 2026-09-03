@@ -35,6 +35,7 @@ const legacyDirectoryKeys = {
   store: "delivery-stores-v1",
 };
 const defaultRate = 700;
+const fuelLitersPer100Km = 16;
 
 const defaults = {
   drivers: ["Андрій", "Сергій"],
@@ -44,6 +45,9 @@ const defaults = {
 
 const moneyFormatter = new Intl.NumberFormat("uk-UA", {
   maximumFractionDigits: 0,
+});
+const fuelFormatter = new Intl.NumberFormat("uk-UA", {
+  maximumFractionDigits: 2,
 });
 
 const refs = {
@@ -91,6 +95,7 @@ const totals = {
   deliveries: document.querySelector("#totalDeliveries"),
   km: document.querySelector("#totalKm"),
   money: document.querySelector("#totalMoney"),
+  fuel: document.querySelector("#totalFuel"),
 };
 
 let trips = [];
@@ -381,12 +386,25 @@ function tripMoney(trip) {
   return Number(trip.deliveries) * Number(trip.rate);
 }
 
+function tripFuel(trip) {
+  const km = tripKm(trip);
+  return km === null ? null : (km * fuelLitersPer100Km) / 100;
+}
+
 function formatKm(value) {
   return value === null ? "Очікує" : `${value} км`;
 }
 
 function formatMoney(value) {
   return `${moneyFormatter.format(value)} грн`;
+}
+
+function formatFuel(value) {
+  if (value === null) {
+    return "Очікує кілометраж";
+  }
+
+  return `${fuelFormatter.format(value)} л`;
 }
 
 function stableImportId(trip, index) {
@@ -565,9 +583,10 @@ function render() {
     cells[5].textContent = trip.kmStart ?? "-";
     cells[6].textContent = trip.kmEnd ?? "-";
     cells[7].textContent = formatKm(tripKm(trip));
-    cells[8].textContent = trip.deliveries;
-    cells[9].textContent = formatMoney(Number(trip.rate || 0));
-    cells[10].textContent = formatMoney(tripMoney(trip));
+    cells[8].textContent = formatFuel(tripFuel(trip));
+    cells[9].textContent = trip.deliveries;
+    cells[10].textContent = formatMoney(Number(trip.rate || 0));
+    cells[11].textContent = formatMoney(tripMoney(trip));
 
     if (trip.note) {
       cells[4].title = trip.note;
@@ -582,11 +601,13 @@ function render() {
   const totalKm = visibleTrips.reduce((sum, trip) => sum + (tripKm(trip) || 0), 0);
   const totalDeliveries = visibleTrips.reduce((sum, trip) => sum + Number(trip.deliveries), 0);
   const totalMoney = visibleTrips.reduce((sum, trip) => sum + tripMoney(trip), 0);
+  const totalFuel = visibleTrips.reduce((sum, trip) => sum + (tripFuel(trip) || 0), 0);
 
   totals.trips.textContent = visibleTrips.length;
   totals.deliveries.textContent = totalDeliveries;
   totals.km.textContent = `${totalKm} км`;
   totals.money.textContent = formatMoney(totalMoney);
+  totals.fuel.textContent = formatFuel(totalFuel);
   emptyState.classList.toggle("is-visible", visibleTrips.length === 0);
 
   renderReport(driverReport, driverReportCount, summarizeBy(visibleTrips, "driver"));
@@ -602,8 +623,10 @@ function updateLiveCalc() {
   const rate = numberValue("#rate");
   const manualAmount = optionalNumberValue("#manualAmount");
   const km = kmStart !== null && kmEnd !== null ? Math.max(0, kmEnd - kmStart) : null;
+  const fuel = km === null ? null : (km * fuelLitersPer100Km) / 100;
   const money = manualAmount !== null ? manualAmount : deliveries * rate;
-  liveCalc.textContent = `${formatKm(km)} | ${formatMoney(money)}`;
+  form.fuelUsed.value = formatFuel(fuel);
+  liveCalc.textContent = `${formatKm(km)} | ${formatFuel(fuel)} | ${formatMoney(money)}`;
 }
 
 function readForm() {
@@ -744,7 +767,7 @@ async function deleteDirectoryItem(type, name) {
 }
 
 function exportCsv() {
-  const header = ["Дата", "Водій", "Авто", "Магазин", "Маршрут", "Км старт", "Км кінець", "Км", "Доставок", "Ціна", "Сума вручну", "Сума", "Нотатка"];
+  const header = ["Дата", "Водій", "Авто", "Магазин", "Маршрут", "Км старт", "Км кінець", "Км", "Пальне (л)", "Доставок", "Ціна", "Сума вручну", "Сума", "Нотатка"];
   const lines = getVisibleTrips().map((trip) => [
     trip.date,
     trip.driver,
@@ -754,6 +777,7 @@ function exportCsv() {
     trip.kmStart ?? "",
     trip.kmEnd ?? "",
     tripKm(trip) ?? "",
+    tripFuel(trip) ?? "",
     trip.deliveries,
     trip.rate,
     trip.manualAmount ?? "",

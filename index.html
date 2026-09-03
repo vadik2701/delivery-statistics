@@ -8,7 +8,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon.svg" />
-    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="styles.css?v=11" />
   </head>
   <body>
     <main class="app">
@@ -91,6 +91,11 @@
             </label>
           </div>
 
+          <label>
+            Витрачено пального (16 л / 100 км)
+            <input id="fuelUsed" type="text" value="Очікує кілометраж" readonly aria-live="polite" />
+          </label>
+
           <div class="split">
             <label>
               Доставок
@@ -142,6 +147,7 @@
                   <th>Старт</th>
                   <th>Кінець</th>
                   <th>Км</th>
+                  <th>Пальне</th>
                   <th>Доставок</th>
                   <th>Ціна</th>
                   <th>Сума</th>
@@ -155,6 +161,11 @@
           <div class="empty-state" id="emptyState">
             <strong>Записів ще немає</strong>
             <span>Додайте перший рейс або змініть фільтр.</span>
+          </div>
+
+          <div class="table-total" aria-live="polite">
+            <span>Всього використано пального</span>
+            <strong id="totalFuel">0 л</strong>
           </div>
         </section>
       </section>
@@ -234,6 +245,7 @@
         <td data-label="Старт"></td>
         <td data-label="Кінець"></td>
         <td data-label="Км"></td>
+        <td data-label="Пальне"></td>
         <td data-label="Доставок"></td>
         <td data-label="Ціна"></td>
         <td data-label="Сума"></td>
@@ -246,7 +258,7 @@
       </tr>
     </template>
 
-    <script type="module" src="app.js?v=9"></script>
+    <script type="module" src="app.js?v=11"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
