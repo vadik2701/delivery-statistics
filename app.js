@@ -36,6 +36,10 @@ const legacyDirectoryKeys = {
 };
 const defaultRate = 700;
 const fuelLitersPer100Km = 16;
+const categories = {
+  store: "Магазини",
+  wholesale: "Оптові доставки",
+};
 
 const defaults = {
   drivers: ["Андрій", "Сергій"],
@@ -55,6 +59,7 @@ const refs = {
   drivers: collection(db, "drivers"),
   vehicles: collection(db, "vehicles"),
   stores: collection(db, "stores"),
+  weeklyReports: collection(db, "weeklyReports"),
 };
 
 const form = document.querySelector("#tripForm");
@@ -89,6 +94,14 @@ const storesList = document.querySelector("#storesList");
 const driversCount = document.querySelector("#driversCount");
 const vehiclesCount = document.querySelector("#vehiclesCount");
 const storesCount = document.querySelector("#storesCount");
+const folderButtons = document.querySelectorAll(".folder-button");
+const storeFolderCount = document.querySelector("#storeFolderCount");
+const wholesaleFolderCount = document.querySelector("#wholesaleFolderCount");
+const recipientLabel = document.querySelector("#recipientLabel");
+const weekPicker = document.querySelector("#weekPicker");
+const saveWeeklyReport = document.querySelector("#saveWeeklyReport");
+const weeklyReportList = document.querySelector("#weeklyReportList");
+const weeklyReportHint = document.querySelector("#weeklyReportHint");
 
 const totals = {
   trips: document.querySelector("#totalTrips"),
@@ -105,8 +118,10 @@ let storeDocs = [];
 let drivers = [];
 let vehicles = [];
 let stores = [];
+let weeklyReports = [];
 let editingId = null;
 let hasLoadedRemote = false;
+let activeCategory = "store";
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -125,6 +140,7 @@ function createExampleTrips() {
       kmEnd: 124586,
       deliveries: 7,
       rate: defaultRate,
+      category: "store",
       manualAmount: null,
       note: "Приклад",
     },
@@ -139,6 +155,7 @@ function createExampleTrips() {
       kmEnd: 88264,
       deliveries: 5,
       rate: defaultRate,
+      category: "store",
       manualAmount: null,
       note: "",
     },
@@ -153,12 +170,37 @@ function normalizeTrip(trip) {
     vehicle: String(trip.vehicle || "Без авто").trim(),
     store: String(trip.store || "").trim(),
     route: String(trip.route || "").trim(),
+    category: normalizeCategory(trip.category || trip.folder),
     kmStart: optionalNumber(trip.kmStart),
     kmEnd: optionalNumber(trip.kmEnd),
     deliveries: Number(trip.deliveries || 0),
     rate: Number(trip.rate || defaultRate),
     manualAmount: optionalNumber(trip.manualAmount),
     note: String(trip.note || "").trim(),
+  };
+}
+
+function normalizeCategory(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "wholesale" || normalized.includes("оптов") ? "wholesale" : "store";
+}
+
+function categoryName(category) {
+  return categories[normalizeCategory(category)];
+}
+
+function normalizeWeeklyReport(report) {
+  return {
+    id: report.id,
+    week: String(report.week || ""),
+    periodStart: String(report.periodStart || ""),
+    periodEnd: String(report.periodEnd || ""),
+    category: normalizeCategory(report.category),
+    trips: Number(report.trips || 0),
+    deliveries: Number(report.deliveries || 0),
+    km: Number(report.km || 0),
+    fuel: Number(report.fuel || 0),
+    money: Number(report.money || 0),
   };
 }
 
@@ -342,6 +384,15 @@ function subscribeToFirebase() {
     },
     showFirebaseError,
   );
+
+  onSnapshot(
+    query(refs.weeklyReports, orderBy("week", "desc")),
+    (snapshot) => {
+      weeklyReports = snapshot.docs.map((item) => normalizeWeeklyReport({ id: item.id, ...item.data() }));
+      renderWeeklyReports();
+    },
+    showFirebaseError,
+  );
 }
 
 function showFirebaseError(error) {
@@ -414,6 +465,7 @@ function stableImportId(trip, index) {
     trip.driver,
     trip.vehicle,
     trip.store,
+    trip.category,
     trip.kmStart ?? "",
     trip.kmEnd ?? "",
     trip.deliveries,
@@ -434,6 +486,7 @@ function getVisibleTrips() {
   const month = monthFilter.value;
 
   return trips.filter((trip) => {
+    const matchesCategory = trip.category === activeCategory;
     const matchesQuery =
       !queryText ||
       trip.driver.toLowerCase().includes(queryText) ||
@@ -442,8 +495,64 @@ function getVisibleTrips() {
       trip.route.toLowerCase().includes(queryText) ||
       trip.note.toLowerCase().includes(queryText);
     const matchesMonth = !month || trip.date.startsWith(month);
-    return matchesQuery && matchesMonth;
+    return matchesCategory && matchesQuery && matchesMonth;
   });
+}
+
+function summarizeTrips(tripsToSummarize) {
+  return {
+    trips: tripsToSummarize.length,
+    deliveries: tripsToSummarize.reduce((sum, trip) => sum + Number(trip.deliveries), 0),
+    km: tripsToSummarize.reduce((sum, trip) => sum + (tripKm(trip) || 0), 0),
+    fuel: tripsToSummarize.reduce((sum, trip) => sum + (tripFuel(trip) || 0), 0),
+    money: tripsToSummarize.reduce((sum, trip) => sum + tripMoney(trip), 0),
+  };
+}
+
+function weekRange(week) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(week);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const weekNumber = Number(match[2]);
+  const januaryFourth = new Date(Date.UTC(year, 0, 4));
+  const daysFromMonday = (januaryFourth.getUTCDay() + 6) % 7;
+  const start = new Date(januaryFourth);
+  start.setUTCDate(januaryFourth.getUTCDate() - daysFromMonday + (weekNumber - 1) * 7);
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 6);
+
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+  };
+}
+
+function currentWeek() {
+  const now = new Date();
+  const date = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNumber = Math.ceil((((date - yearStart) / 86400000 + 1) / 7));
+  return `${date.getUTCFullYear()}-W${String(weekNumber).padStart(2, "0")}`;
+}
+
+function formatWeekRange(week, periodStart, periodEnd) {
+  const range = periodStart && periodEnd ? { start: periodStart, end: periodEnd } : weekRange(week);
+  if (!range) {
+    return week || "Тиждень не вказано";
+  }
+
+  const formatter = new Intl.DateTimeFormat("uk-UA", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const toDate = (date) => new Date(`${date}T12:00:00`);
+  return `${formatter.format(toDate(range.start))} — ${formatter.format(toDate(range.end))}`;
 }
 
 function summarizeBy(tripsToSummarize, key) {

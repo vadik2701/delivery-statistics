@@ -8,7 +8,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon.svg" />
-    <link rel="stylesheet" href="styles.css?v=11" />
+    <link rel="stylesheet" href="styles.css?v=12" />
   </head>
   <body>
     <main class="app">
@@ -45,6 +45,17 @@
         </article>
       </section>
 
+      <nav class="delivery-folders" aria-label="Папки доставок">
+        <button class="folder-button is-active" type="button" data-category="store">
+          <span>Магазини</span>
+          <strong id="storeFolderCount">0</strong>
+        </button>
+        <button class="folder-button" type="button" data-category="wholesale">
+          <span>Оптові доставки</span>
+          <strong id="wholesaleFolderCount">0</strong>
+        </button>
+      </nav>
+
       <section class="workspace">
         <form class="entry-form" id="tripForm">
           <div class="form-head">
@@ -61,6 +72,14 @@
           </label>
 
           <label>
+            Папка рейсу
+            <select id="category" name="category" required>
+              <option value="store">Магазини</option>
+              <option value="wholesale">Оптові доставки</option>
+            </select>
+          </label>
+
+          <label>
             Водій
             <select id="driver" name="driver" required></select>
           </label>
@@ -71,7 +90,7 @@
           </label>
 
           <label>
-            Магазин
+            <span id="recipientLabel">Магазин</span>
             <select id="store" name="store" required></select>
           </label>
 
@@ -142,7 +161,7 @@
                   <th>Дата</th>
                   <th>Водій</th>
                   <th>Авто</th>
-                  <th>Магазин</th>
+                  <th>Точка доставки</th>
                   <th>Маршрут</th>
                   <th>Старт</th>
                   <th>Кінець</th>
@@ -196,6 +215,26 @@
         </article>
       </section>
 
+      <section class="weekly-reports" aria-label="Збережені тижневі звіти">
+        <article class="weekly-report-panel">
+          <div class="weekly-report-head">
+            <div>
+              <p class="eyebrow">Архів</p>
+              <h2>Звіти за тиждень</h2>
+              <p id="weeklyReportHint">Збережіть підсумок для відкритої папки.</p>
+            </div>
+            <div class="weekly-save-controls">
+              <label>
+                Тиждень
+                <input id="weekPicker" type="week" required />
+              </label>
+              <button class="primary-button" id="saveWeeklyReport" type="button">Зберегти звіт</button>
+            </div>
+          </div>
+          <div class="weekly-report-list" id="weeklyReportList"></div>
+        </article>
+      </section>
+
       <section class="directories" aria-label="Довідники">
         <article class="directory-panel">
           <div class="directory-head">
@@ -223,11 +262,11 @@
 
         <article class="directory-panel">
           <div class="directory-head">
-            <h2>Магазини</h2>
+            <h2>Магазини й оптові клієнти</h2>
             <span id="storesCount">0</span>
           </div>
           <form class="directory-form" id="storeDirectoryForm">
-            <input id="storeName" type="text" placeholder="Наприклад: Сільпо Оболонь" required />
+            <input id="storeName" type="text" placeholder="Наприклад: Сільпо Оболонь або оптовий клієнт" required />
             <button class="primary-button" type="submit">Додати</button>
           </form>
           <div id="storesList" class="directory-list"></div>
@@ -258,7 +297,7 @@
       </tr>
     </template>
 
-    <script type="module" src="app.js?v=11"></script>
+    <script type="module" src="app.js?v=12"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {

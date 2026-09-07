@@ -136,6 +136,45 @@ h2 {
   margin-bottom: 18px;
 }
 
+.delivery-folders {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.folder-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--panel);
+  box-shadow: 0 8px 20px rgba(35, 46, 41, 0.05);
+  font-weight: 900;
+}
+
+.folder-button strong {
+  min-width: 28px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--accent-dark);
+  background: var(--soft);
+  font-size: 12px;
+}
+
+.folder-button.is-active {
+  color: #ffffff;
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.folder-button.is-active strong {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .metric,
 .entry-form,
 .table-panel,
@@ -365,6 +404,97 @@ td:nth-child(11) {
   margin-top: 18px;
 }
 
+.weekly-reports {
+  margin-top: 18px;
+}
+
+.weekly-report-panel {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.weekly-report-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.weekly-report-head h2 {
+  margin-top: 3px;
+}
+
+.weekly-report-head p:not(.eyebrow) {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.weekly-save-controls {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+
+.weekly-save-controls label {
+  min-width: 150px;
+}
+
+.weekly-save-controls .primary-button {
+  flex: 0 0 auto;
+  padding: 0 16px;
+}
+
+.weekly-report-list {
+  display: grid;
+}
+
+.weekly-report-card {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.2fr) repeat(5, auto) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.weekly-report-card:last-child {
+  border-bottom: 0;
+}
+
+.weekly-report-title {
+  display: grid;
+  gap: 4px;
+}
+
+.weekly-report-title strong {
+  font-size: 15px;
+}
+
+.weekly-report-title span,
+.weekly-report-stat {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.weekly-report-stat strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.weekly-report-stat.is-money strong {
+  color: var(--accent-dark);
+}
+
 .report-panel,
 .directory-panel {
   min-width: 0;
@@ -509,24 +639,30 @@ td:nth-child(11) {
   .split,
   .reports,
   .directories,
-  .directory-form {
+  .directory-form,
+  .weekly-report-head,
+  .weekly-save-controls {
     grid-template-columns: 1fr;
   }
 
   .topbar,
   .filters,
-  .split {
+  .split,
+  .delivery-folders,
+  .weekly-save-controls {
     flex-direction: column;
     align-items: stretch;
   }
 
   .actions,
-  .form-actions {
+  .form-actions,
+  .weekly-save-controls {
     width: 100%;
   }
 
   .actions button,
-  .form-actions button {
+  .form-actions button,
+  .weekly-save-controls button {
     flex: 1;
   }
 
@@ -585,6 +721,14 @@ td:nth-child(11) {
 
   .report-name,
   .report-money {
+    grid-column: 1 / -1;
+  }
+
+  .weekly-report-card {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .weekly-report-title {
     grid-column: 1 / -1;
   }
 }
