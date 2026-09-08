@@ -102,6 +102,13 @@ const weekPicker = document.querySelector("#weekPicker");
 const saveWeeklyReport = document.querySelector("#saveWeeklyReport");
 const weeklyReportList = document.querySelector("#weeklyReportList");
 const weeklyReportHint = document.querySelector("#weeklyReportHint");
+const periodStart = document.querySelector("#periodStart");
+const periodEnd = document.querySelector("#periodEnd");
+const savePeriodReport = document.querySelector("#savePeriodReport");
+const completedReportDialog = document.querySelector("#completedReportDialog");
+const completedReportTitle = document.querySelector("#completedReportTitle");
+const completedReportContent = document.querySelector("#completedReportContent");
+const closeCompletedReport = document.querySelector("#closeCompletedReport");
 
 const totals = {
   trips: document.querySelector("#totalTrips"),
@@ -192,6 +199,7 @@ function categoryName(category) {
 function normalizeWeeklyReport(report) {
   return {
     id: report.id,
+    type: report.type === "period" ? "period" : "week",
     week: String(report.week || ""),
     periodStart: String(report.periodStart || ""),
     periodEnd: String(report.periodEnd || ""),
@@ -201,6 +209,23 @@ function normalizeWeeklyReport(report) {
     km: Number(report.km || 0),
     fuel: Number(report.fuel || 0),
     money: Number(report.money || 0),
+    tripDetails: Array.isArray(report.tripDetails)
+      ? report.tripDetails.map((trip) => ({
+          date: String(trip.date || ""),
+          driver: String(trip.driver || ""),
+          vehicle: String(trip.vehicle || ""),
+          store: String(trip.store || ""),
+          route: String(trip.route || ""),
+          kmStart: optionalNumber(trip.kmStart),
+          kmEnd: optionalNumber(trip.kmEnd),
+          km: Number(trip.km || 0),
+          fuel: Number(trip.fuel || 0),
+          deliveries: Number(trip.deliveries || 0),
+          rate: Number(trip.rate || 0),
+          money: Number(trip.money || 0),
+          note: String(trip.note || ""),
+        }))
+      : [],
   };
 }
 
@@ -386,9 +411,11 @@ function subscribeToFirebase() {
   );
 
   onSnapshot(
-    query(refs.weeklyReports, orderBy("week", "desc")),
+    refs.weeklyReports,
     (snapshot) => {
-      weeklyReports = snapshot.docs.map((item) => normalizeWeeklyReport({ id: item.id, ...item.data() }));
+      weeklyReports = snapshot.docs
+        .map((item) => normalizeWeeklyReport({ id: item.id, ...item.data() }))
+        .sort((a, b) => b.periodEnd.localeCompare(a.periodEnd) || b.week.localeCompare(a.week));
       renderWeeklyReports();
     },
     showFirebaseError,
@@ -555,6 +582,29 @@ function formatWeekRange(week, periodStart, periodEnd) {
   return `${formatter.format(toDate(range.start))} — ${formatter.format(toDate(range.end))}`;
 }
 
+function formatSavedReportTitle(report) {
+  const prefix = report.type === "period" ? "Період" : "Тиждень";
+  return `${prefix}: ${formatWeekRange(report.week, report.periodStart, report.periodEnd)}`;
+}
+
+function reportTripDetails(tripsToInclude) {
+  return tripsToInclude.map((trip) => ({
+    date: trip.date,
+    driver: trip.driver,
+    vehicle: trip.vehicle,
+    store: trip.store,
+    route: trip.route,
+    kmStart: trip.kmStart,
+    kmEnd: trip.kmEnd,
+    km: tripKm(trip) || 0,
+    fuel: tripFuel(trip) || 0,
+    deliveries: Number(trip.deliveries),
+    rate: Number(trip.rate),
+    money: tripMoney(trip),
+    note: trip.note,
+  }));
+}
+
 function summarizeBy(tripsToSummarize, key) {
   const result = new Map();
 
@@ -674,6 +724,272 @@ function renderDirectories() {
   renderDirectory(storesList, storesCount, stores, "store");
 }
 
+function renderFolderInterface() {
+  const storeTrips = trips.filter((trip) => trip.category === "store").length;
+  const wholesaleTrips = trips.filter((trip) => trip.category === "wholesale").length;
+
+  storeFolderCount.textContent = storeTrips;
+  wholesaleFolderCount.textContent = wholesaleTrips;
+  folderButtons.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.category === activeCategory);
+  });
+
+  recipientLabel.textContent = form.category.value === "wholesale" ? "Оптовий клієнт" : "Магазин";
+  weeklyReportHint.textContent = `Тижневий або періодичний підсумок для «${categoryName(activeCategory)}» збережеться тут і залишиться доступним для перегляду.`;
+}
+
+function renderWeeklyReports() {
+  weeklyReportList.innerHTML = "";
+
+  if (!weeklyReports.length) {
+    const empty = document.createElement("div");
+    empty.className = "report-empty";
+    empty.textContent = "Завершених звітів ще немає.";
+    weeklyReportList.append(empty);
+    return;
+  }
+
+  weeklyReports.forEach((report) => {
+    const card = document.createElement("div");
+    card.className = "weekly-report-card";
+
+    const title = document.createElement("div");
+    title.className = "weekly-report-title";
+    const weekTitle = document.createElement("strong");
+    weekTitle.textContent = formatSavedReportTitle(report);
+    const category = document.createElement("span");
+    category.textContent = categoryName(report.category);
+    title.append(weekTitle, category);
+    card.append(title);
+
+    const stats = [
+      ["Рейсів", report.trips],
+      ["Доставок", report.deliveries],
+      ["Км", `${report.km} км`],
+      ["Пальне", formatFuel(report.fuel)],
+      ["Сума", formatMoney(report.money), "is-money"],
+    ];
+    stats.forEach(([label, value, extraClass]) => {
+      const stat = document.createElement("div");
+      stat.className = `weekly-report-stat${extraClass ? ` ${extraClass}` : ""}`;
+      const labelElement = document.createElement("span");
+      labelElement.textContent = label;
+      const valueElement = document.createElement("strong");
+      valueElement.textContent = value;
+      stat.append(labelElement, valueElement);
+      card.append(stat);
+    });
+
+    const openButton = document.createElement("button");
+    openButton.className = "small-button edit-row";
+    openButton.type = "button";
+    openButton.textContent = "Відкрити";
+    openButton.addEventListener("click", () => openCompletedReport(report));
+    card.append(openButton);
+
+    const printButton = document.createElement("button");
+    printButton.className = "small-button print-report";
+    printButton.type = "button";
+    printButton.textContent = "Друк";
+    printButton.addEventListener("click", () => printCompletedReport(report));
+    card.append(printButton);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "small-button delete-row";
+    deleteButton.type = "button";
+    deleteButton.title = "Видалити завершений тиждень";
+    deleteButton.textContent = "×";
+    deleteButton.addEventListener("click", () => deleteWeeklyReport(report));
+    card.append(deleteButton);
+    weeklyReportList.append(card);
+  });
+}
+
+function getReportDetails(report) {
+  if (report.tripDetails.length) {
+    return report.tripDetails;
+  }
+
+  return reportTripDetails(
+    trips.filter((trip) => trip.category === report.category && trip.date >= report.periodStart && trip.date <= report.periodEnd),
+  );
+}
+
+function openCompletedReport(report) {
+  completedReportTitle.textContent = `${formatSavedReportTitle(report)} — ${categoryName(report.category)}`;
+  completedReportContent.innerHTML = "";
+
+  const summary = document.createElement("div");
+  summary.className = "completed-report-summary";
+  [
+    ["Рейсів", report.trips],
+    ["Доставок", report.deliveries],
+    ["Кілометрів", `${report.km} км`],
+    ["Пальне", formatFuel(report.fuel)],
+    ["Сума", formatMoney(report.money)],
+  ].forEach(([label, value]) => {
+    const item = document.createElement("div");
+    const labelElement = document.createElement("span");
+    labelElement.textContent = label;
+    const valueElement = document.createElement("strong");
+    valueElement.textContent = value;
+    item.append(labelElement, valueElement);
+    summary.append(item);
+  });
+  completedReportContent.append(summary);
+
+  const details = getReportDetails(report);
+
+  if (!details.length) {
+    const message = document.createElement("p");
+    message.className = "report-empty";
+    message.textContent = "Для цього звіту немає рейсів, доступних для перегляду. Підсумок збережено вище.";
+    completedReportContent.append(message);
+  } else {
+    if (!report.tripDetails.length) {
+      const note = document.createElement("p");
+      note.className = "report-empty";
+      note.textContent = "Цей старіший звіт відновлено з поточного журналу за його датами.";
+      completedReportContent.append(note);
+    }
+    const wrap = document.createElement("div");
+    wrap.className = "completed-trip-table-wrap";
+    const table = document.createElement("table");
+    table.className = "completed-trip-table";
+    const header = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    const columns = ["Дата", "Водій", "Авто", "Точка доставки", "Маршрут", "Старт", "Кінець", "Км", "Пальне", "Доставок", "Ціна", "Сума", "Нотатка"];
+    columns.forEach((label) => {
+      const cell = document.createElement("th");
+      cell.textContent = label;
+      headerRow.append(cell);
+    });
+    header.append(headerRow);
+    const body = document.createElement("tbody");
+    details.forEach((trip) => {
+      const row = document.createElement("tr");
+      const values = [
+        trip.date,
+        trip.driver,
+        trip.vehicle,
+        trip.store,
+        trip.route || "-",
+        trip.kmStart ?? "-",
+        trip.kmEnd ?? "-",
+        `${trip.km} км`,
+        formatFuel(trip.fuel),
+        trip.deliveries,
+        formatMoney(trip.rate),
+        formatMoney(trip.money),
+        trip.note || "-",
+      ];
+      values.forEach((value, index) => {
+        const cell = document.createElement("td");
+        cell.dataset.label = columns[index];
+        cell.textContent = value;
+        row.append(cell);
+      });
+      body.append(row);
+    });
+    table.append(header, body);
+    wrap.append(table);
+    completedReportContent.append(wrap);
+  }
+
+  if (typeof completedReportDialog.showModal === "function") {
+    completedReportDialog.showModal();
+  } else {
+    completedReportDialog.setAttribute("open", "");
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function printCompletedReport(report) {
+  const details = getReportDetails(report);
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    alert("Браузер заблокував вікно друку. Дозвольте спливні вікна для цієї програми та спробуйте ще раз.");
+    return;
+  }
+
+  const title = `${formatSavedReportTitle(report)} — ${categoryName(report.category)}`;
+  const columns = ["Дата", "Водій", "Авто", "Точка доставки", "Маршрут", "Старт", "Кінець", "Км", "Пальне", "Доставок", "Ціна", "Сума", "Нотатка"];
+  const rowsHtml = details
+    .map((trip) => {
+      const values = [
+        trip.date,
+        trip.driver,
+        trip.vehicle,
+        trip.store,
+        trip.route || "-",
+        trip.kmStart ?? "-",
+        trip.kmEnd ?? "-",
+        `${trip.km} км`,
+        formatFuel(trip.fuel),
+        trip.deliveries,
+        formatMoney(trip.rate),
+        formatMoney(trip.money),
+        trip.note || "-",
+      ];
+      return `<tr>${values.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`;
+    })
+    .join("");
+
+  printWindow.document.write(`<!doctype html>
+    <html lang="uk">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          @page { size: A4 landscape; margin: 10mm; }
+          * { box-sizing: border-box; }
+          body { margin: 0; color: #1d2522; font-family: Arial, sans-serif; font-size: 11px; }
+          h1 { margin: 0 0 4px; font-size: 22px; }
+          p { margin: 0 0 14px; color: #52605a; font-weight: 700; }
+          .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
+          .summary div { padding: 9px; border: 1px solid #cfd7d0; border-radius: 6px; }
+          .summary span { display: block; margin-bottom: 4px; color: #52605a; font-size: 10px; font-weight: 700; }
+          .summary strong { font-size: 14px; }
+          table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          th, td { padding: 5px 4px; border: 1px solid #cfd7d0; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+          th { color: #46534d; background: #edf7f4; font-size: 9px; text-transform: uppercase; }
+          td { font-size: 9px; }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        <p>Надруковано: ${escapeHtml(new Date().toLocaleString("uk-UA"))}</p>
+        <section class="summary">
+          <div><span>Рейсів</span><strong>${escapeHtml(report.trips)}</strong></div>
+          <div><span>Доставок</span><strong>${escapeHtml(report.deliveries)}</strong></div>
+          <div><span>Кілометрів</span><strong>${escapeHtml(`${report.km} км`)}</strong></div>
+          <div><span>Пальне</span><strong>${escapeHtml(formatFuel(report.fuel))}</strong></div>
+          <div><span>Сума</span><strong>${escapeHtml(formatMoney(report.money))}</strong></div>
+        </section>
+        <table>
+          <thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead>
+          <tbody>${rowsHtml || `<tr><td colspan="${columns.length}">Детальні рейси для цього звіту відсутні.</td></tr>`}</tbody>
+        </table>
+      </body>
+    </html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
+}
+
+function setActiveCategory(category) {
+  activeCategory = normalizeCategory(category);
+  resetForm();
+  render();
+}
+
 function render() {
   const visibleTrips = getVisibleTrips();
   rows.innerHTML = "";
@@ -707,22 +1023,21 @@ function render() {
     rows.append(fragment);
   });
 
-  const totalKm = visibleTrips.reduce((sum, trip) => sum + (tripKm(trip) || 0), 0);
-  const totalDeliveries = visibleTrips.reduce((sum, trip) => sum + Number(trip.deliveries), 0);
-  const totalMoney = visibleTrips.reduce((sum, trip) => sum + tripMoney(trip), 0);
-  const totalFuel = visibleTrips.reduce((sum, trip) => sum + (tripFuel(trip) || 0), 0);
+  const summary = summarizeTrips(visibleTrips);
 
-  totals.trips.textContent = visibleTrips.length;
-  totals.deliveries.textContent = totalDeliveries;
-  totals.km.textContent = `${totalKm} км`;
-  totals.money.textContent = formatMoney(totalMoney);
-  totals.fuel.textContent = formatFuel(totalFuel);
+  totals.trips.textContent = summary.trips;
+  totals.deliveries.textContent = summary.deliveries;
+  totals.km.textContent = `${summary.km} км`;
+  totals.money.textContent = formatMoney(summary.money);
+  totals.fuel.textContent = formatFuel(summary.fuel);
   emptyState.classList.toggle("is-visible", visibleTrips.length === 0);
 
   renderReport(driverReport, driverReportCount, summarizeBy(visibleTrips, "driver"));
   renderReport(storeReport, storeReportCount, summarizeBy(visibleTrips, "store"));
   renderReport(vehicleReport, vehicleReportCount, summarizeBy(visibleTrips, "vehicle"));
   renderDirectories();
+  renderFolderInterface();
+  renderWeeklyReports();
 }
 
 function updateLiveCalc() {
@@ -746,6 +1061,7 @@ function readForm() {
     vehicle: form.vehicle.value.trim(),
     store: form.store.value.trim(),
     route: form.route.value.trim(),
+    category: normalizeCategory(form.category.value),
     kmStart: optionalNumberValue("#kmStart"),
     kmEnd: optionalNumberValue("#kmEnd"),
     deliveries: numberValue("#deliveries"),
@@ -760,8 +1076,9 @@ function resetForm() {
   editingId = null;
   form.reset();
   form.date.value = today();
+  form.category.value = activeCategory;
   form.rate.value = rate;
-  formTitle.textContent = "Новий рейс";
+  formTitle.textContent = `Новий рейс — ${categoryName(activeCategory)}`;
   submitButton.textContent = "Додати рейс";
   cancelEdit.classList.add("is-hidden");
   renderDirectories();
@@ -783,6 +1100,7 @@ function startEdit(id) {
   form.vehicle.value = trip.vehicle;
   form.store.value = trip.store;
   form.route.value = trip.route;
+  form.category.value = trip.category;
   form.kmStart.value = trip.kmStart ?? "";
   form.kmEnd.value = trip.kmEnd ?? "";
   form.deliveries.value = trip.deliveries;
@@ -875,9 +1193,123 @@ async function deleteDirectoryItem(type, name) {
   }
 }
 
+async function finishWeek() {
+  const week = weekPicker.value;
+  const range = weekRange(week);
+  if (!range) {
+    alert("Оберіть тиждень для завершення.");
+    return;
+  }
+
+  const weekTrips = trips.filter(
+    (trip) => trip.category === activeCategory && trip.date >= range.start && trip.date <= range.end,
+  );
+  const summary = summarizeTrips(weekTrips);
+  const title = formatWeekRange(week, range.start, range.end);
+
+  if (!summary.trips) {
+    alert(`У папці «${categoryName(activeCategory)}» за ${title} немає рейсів.`);
+    return;
+  }
+
+  const reportId = `${week}-${activeCategory}`;
+  const message = `Завершити тиждень ${title}?\nПапка: ${categoryName(activeCategory)}\nРейсів: ${summary.trips}\nДоставок: ${summary.deliveries}\nКм: ${summary.km}\nПальне: ${formatFuel(summary.fuel)}\nСума: ${formatMoney(summary.money)}\n\nПідсумок збережеться в папці «Завершені звіти».`;
+  if (!confirm(message)) {
+    return;
+  }
+
+  saveWeeklyReport.disabled = true;
+  try {
+    await setDoc(
+      doc(refs.weeklyReports, reportId),
+      {
+        type: "week",
+        week,
+        periodStart: range.start,
+        periodEnd: range.end,
+        category: activeCategory,
+        ...summary,
+        tripDetails: reportTripDetails(weekTrips),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+    setStatus(`Тиждень завершено. Звіт збережено в папці «Завершені звіти».`);
+  } catch (error) {
+    showFirebaseError(error);
+  } finally {
+    saveWeeklyReport.disabled = false;
+  }
+}
+
+async function savePeriod() {
+  const start = periodStart.value;
+  const end = periodEnd.value;
+  if (!start || !end) {
+    alert("Оберіть дати «Від» і «До» для звіту.");
+    return;
+  }
+  if (end < start) {
+    alert("Дата «До» має бути не раніше за дату «Від».");
+    return;
+  }
+
+  const periodTrips = trips.filter(
+    (trip) => trip.category === activeCategory && trip.date >= start && trip.date <= end,
+  );
+  const summary = summarizeTrips(periodTrips);
+  const title = formatWeekRange("", start, end);
+  if (!summary.trips) {
+    alert(`У папці «${categoryName(activeCategory)}» за період ${title} немає рейсів.`);
+    return;
+  }
+
+  const message = `Зберегти звіт за період ${title}?\nПапка: ${categoryName(activeCategory)}\nРейсів: ${summary.trips}\nДоставок: ${summary.deliveries}\nКм: ${summary.km}\nПальне: ${formatFuel(summary.fuel)}\nСума: ${formatMoney(summary.money)}`;
+  if (!confirm(message)) {
+    return;
+  }
+
+  savePeriodReport.disabled = true;
+  try {
+    await setDoc(
+      doc(refs.weeklyReports, `period-${activeCategory}-${start}-${end}`),
+      {
+        type: "period",
+        week: "",
+        periodStart: start,
+        periodEnd: end,
+        category: activeCategory,
+        ...summary,
+        tripDetails: reportTripDetails(periodTrips),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+    setStatus(`Звіт за період збережено в папці «Завершені звіти».`);
+  } catch (error) {
+    showFirebaseError(error);
+  } finally {
+    savePeriodReport.disabled = false;
+  }
+}
+
+async function deleteWeeklyReport(report) {
+  const title = formatSavedReportTitle(report);
+  if (!confirm(`Видалити завершений звіт «${title}» (${categoryName(report.category)})?`)) {
+    return;
+  }
+
+  try {
+    await deleteDoc(doc(refs.weeklyReports, report.id));
+  } catch (error) {
+    showFirebaseError(error);
+  }
+}
+
 function exportCsv() {
-  const header = ["Дата", "Водій", "Авто", "Магазин", "Маршрут", "Км старт", "Км кінець", "Км", "Пальне (л)", "Доставок", "Ціна", "Сума вручну", "Сума", "Нотатка"];
+  const header = ["Папка", "Дата", "Водій", "Авто", "Магазин", "Маршрут", "Км старт", "Км кінець", "Км", "Пальне (л)", "Доставок", "Ціна", "Сума вручну", "Сума", "Нотатка"];
   const lines = getVisibleTrips().map((trip) => [
+    categoryName(trip.category),
     trip.date,
     trip.driver,
     trip.vehicle,
@@ -961,6 +1393,7 @@ function csvRowsToObjects(rows) {
 
 function csvTripToRecord(row, index) {
   const trip = normalizeTrip({
+    category: row["Папка"],
     date: row["Дата"],
     driver: row["Водій"],
     vehicle: row["Авто"],
@@ -1073,6 +1506,13 @@ storeDirectoryForm.addEventListener("submit", async (event) => {
 
 search.addEventListener("input", render);
 monthFilter.addEventListener("input", render);
+form.category.addEventListener("change", renderFolderInterface);
+folderButtons.forEach((button) => {
+  button.addEventListener("click", () => setActiveCategory(button.dataset.category));
+});
+saveWeeklyReport.addEventListener("click", finishWeek);
+savePeriodReport.addEventListener("click", savePeriod);
+closeCompletedReport.addEventListener("click", () => completedReportDialog.close());
 cancelEdit.addEventListener("click", resetForm);
 printStats.addEventListener("click", () => window.print());
 importCsv.addEventListener("click", () => importCsvFile.click());
@@ -1094,7 +1534,7 @@ importCsvFile.addEventListener("change", async () => {
 document.querySelector("#exportCsv").addEventListener("click", exportCsv);
 
 document.querySelector("#clearAll").addEventListener("click", async () => {
-  if (!confirm("Очистити всі рейси? Довідники водіїв, авто і магазинів залишаться.")) {
+  if (!confirm("Очистити всі рейси? Довідники водіїв, авто і магазинів та завершені тижні залишаться.")) {
     return;
   }
 
@@ -1104,6 +1544,9 @@ document.querySelector("#clearAll").addEventListener("click", async () => {
   resetForm();
 });
 
+weekPicker.value = currentWeek();
+periodStart.value = `${today().slice(0, 8)}01`;
+periodEnd.value = today();
 resetForm();
 render();
 

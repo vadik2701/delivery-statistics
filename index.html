@@ -8,7 +8,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon.svg" />
-    <link rel="stylesheet" href="styles.css?v=12" />
+    <link rel="stylesheet" href="styles.css?v=16" />
   </head>
   <body>
     <main class="app">
@@ -215,25 +215,48 @@
         </article>
       </section>
 
-      <section class="weekly-reports" aria-label="Збережені тижневі звіти">
+      <section class="weekly-reports" aria-label="Завершені звіти">
         <article class="weekly-report-panel">
           <div class="weekly-report-head">
             <div>
-              <p class="eyebrow">Архів</p>
-              <h2>Звіти за тиждень</h2>
-              <p id="weeklyReportHint">Збережіть підсумок для відкритої папки.</p>
+              <p class="eyebrow">Папка</p>
+              <h2>Завершені звіти</h2>
+              <p id="weeklyReportHint">Завершіть тиждень або збережіть звіт за період, щоб переглянути його тут пізніше.</p>
             </div>
             <div class="weekly-save-controls">
               <label>
                 Тиждень
                 <input id="weekPicker" type="week" required />
               </label>
-              <button class="primary-button" id="saveWeeklyReport" type="button">Зберегти звіт</button>
+              <button class="primary-button" id="saveWeeklyReport" type="button">Завершити тиждень</button>
             </div>
+          </div>
+          <div class="custom-report-controls">
+            <strong>Звіт за місяць або довільний період</strong>
+            <label>
+              Від
+              <input id="periodStart" type="date" required />
+            </label>
+            <label>
+              До
+              <input id="periodEnd" type="date" required />
+            </label>
+            <button class="ghost-button" id="savePeriodReport" type="button">Зберегти звіт за період</button>
           </div>
           <div class="weekly-report-list" id="weeklyReportList"></div>
         </article>
       </section>
+
+      <dialog class="report-dialog" id="completedReportDialog" aria-labelledby="completedReportTitle">
+        <div class="report-dialog-head">
+          <div>
+            <p class="eyebrow">Завершений звіт</p>
+            <h2 id="completedReportTitle">Звіт</h2>
+          </div>
+          <button class="small-button delete-row" id="closeCompletedReport" type="button" title="Закрити">×</button>
+        </div>
+        <div class="report-dialog-content" id="completedReportContent"></div>
+      </dialog>
 
       <section class="directories" aria-label="Довідники">
         <article class="directory-panel">
@@ -297,7 +320,7 @@
       </tr>
     </template>
 
-    <script type="module" src="app.js?v=12"></script>
+    <script type="module" src="app.js?v=16"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {

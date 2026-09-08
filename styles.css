@@ -360,6 +360,11 @@ td:nth-child(11) {
   line-height: 1;
 }
 
+.print-report {
+  color: var(--accent-dark);
+  background: var(--soft);
+}
+
 .empty-state {
   display: none;
   place-items: center;
@@ -455,6 +460,28 @@ td:nth-child(11) {
   display: grid;
 }
 
+.custom-report-controls {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.custom-report-controls > strong {
+  margin-right: auto;
+  padding-bottom: 12px;
+  font-size: 14px;
+}
+
+.custom-report-controls label {
+  min-width: 140px;
+}
+
+.custom-report-controls .ghost-button {
+  flex: 0 0 auto;
+}
+
 .weekly-report-card {
   display: grid;
   grid-template-columns: minmax(190px, 1.2fr) repeat(5, auto) auto;
@@ -493,6 +520,69 @@ td:nth-child(11) {
 
 .weekly-report-stat.is-money strong {
   color: var(--accent-dark);
+}
+
+.report-dialog {
+  width: min(1100px, calc(100% - 32px));
+  max-height: min(780px, calc(100% - 32px));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.report-dialog::backdrop {
+  background: rgba(29, 37, 34, 0.48);
+}
+
+.report-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.report-dialog-content {
+  max-height: 620px;
+  overflow: auto;
+  padding: 18px;
+}
+
+.completed-report-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.completed-report-summary div {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.completed-report-summary span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.completed-report-summary strong {
+  font-size: 16px;
+}
+
+.completed-trip-table {
+  min-width: 1320px;
+}
+
+.completed-trip-table-wrap {
+  overflow-x: auto;
 }
 
 .report-panel,
@@ -626,6 +716,18 @@ td:nth-child(11) {
   .directories {
     grid-column: 1 / -1;
   }
+
+  .weekly-report-card {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .weekly-report-title {
+    grid-column: 1 / -1;
+  }
+
+  .completed-report-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 700px) {
@@ -641,7 +743,8 @@ td:nth-child(11) {
   .directories,
   .directory-form,
   .weekly-report-head,
-  .weekly-save-controls {
+  .weekly-save-controls,
+  .custom-report-controls {
     grid-template-columns: 1fr;
   }
 
@@ -649,20 +752,23 @@ td:nth-child(11) {
   .filters,
   .split,
   .delivery-folders,
-  .weekly-save-controls {
+  .weekly-save-controls,
+  .custom-report-controls {
     flex-direction: column;
     align-items: stretch;
   }
 
   .actions,
   .form-actions,
-  .weekly-save-controls {
+  .weekly-save-controls,
+  .custom-report-controls {
     width: 100%;
   }
 
   .actions button,
   .form-actions button,
-  .weekly-save-controls button {
+  .weekly-save-controls button,
+  .custom-report-controls button {
     flex: 1;
   }
 
@@ -730,6 +836,14 @@ td:nth-child(11) {
 
   .weekly-report-title {
     grid-column: 1 / -1;
+  }
+
+  .custom-report-controls > strong {
+    padding-bottom: 0;
+  }
+
+  .completed-report-summary {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
