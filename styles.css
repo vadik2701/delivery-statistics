@@ -867,6 +867,40 @@ td:nth-child(11) {
     background: #ffffff;
   }
 
+  body.is-printing-report .app {
+    display: none !important;
+  }
+
+  body.is-printing-report .report-dialog {
+    display: block;
+    position: static;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  body.is-printing-report .report-dialog-head {
+    padding: 0 0 10px;
+  }
+
+  body.is-printing-report .report-dialog-content {
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+  }
+
+  body.is-printing-report .completed-trip-table-wrap {
+    overflow: visible;
+  }
+
+  body.is-printing-report .completed-trip-table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
   button,
   .actions,
   .entry-form,

@@ -903,85 +903,22 @@ function openCompletedReport(report) {
   }
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
 function printCompletedReport(report) {
-  const details = getReportDetails(report);
-  const printWindow = window.open("", "_blank");
-  if (!printWindow) {
-    alert("Браузер заблокував вікно друку. Дозвольте спливні вікна для цієї програми та спробуйте ще раз.");
-    return;
-  }
+  openCompletedReport(report);
+  document.body.classList.add("is-printing-report");
 
-  const title = `${formatSavedReportTitle(report)} — ${categoryName(report.category)}`;
-  const columns = ["Дата", "Водій", "Авто", "Точка доставки", "Маршрут", "Старт", "Кінець", "Км", "Пальне", "Доставок", "Ціна", "Сума", "Нотатка"];
-  const rowsHtml = details
-    .map((trip) => {
-      const values = [
-        trip.date,
-        trip.driver,
-        trip.vehicle,
-        trip.store,
-        trip.route || "-",
-        trip.kmStart ?? "-",
-        trip.kmEnd ?? "-",
-        `${trip.km} км`,
-        formatFuel(trip.fuel),
-        trip.deliveries,
-        formatMoney(trip.rate),
-        formatMoney(trip.money),
-        trip.note || "-",
-      ];
-      return `<tr>${values.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`;
-    })
-    .join("");
+  window.addEventListener(
+    "afterprint",
+    () => {
+      document.body.classList.remove("is-printing-report");
+      if (completedReportDialog.open) {
+        completedReportDialog.close();
+      }
+    },
+    { once: true },
+  );
 
-  printWindow.document.write(`<!doctype html>
-    <html lang="uk">
-      <head>
-        <meta charset="utf-8" />
-        <title>${escapeHtml(title)}</title>
-        <style>
-          @page { size: A4 landscape; margin: 10mm; }
-          * { box-sizing: border-box; }
-          body { margin: 0; color: #1d2522; font-family: Arial, sans-serif; font-size: 11px; }
-          h1 { margin: 0 0 4px; font-size: 22px; }
-          p { margin: 0 0 14px; color: #52605a; font-weight: 700; }
-          .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
-          .summary div { padding: 9px; border: 1px solid #cfd7d0; border-radius: 6px; }
-          .summary span { display: block; margin-bottom: 4px; color: #52605a; font-size: 10px; font-weight: 700; }
-          .summary strong { font-size: 14px; }
-          table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-          th, td { padding: 5px 4px; border: 1px solid #cfd7d0; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-          th { color: #46534d; background: #edf7f4; font-size: 9px; text-transform: uppercase; }
-          td { font-size: 9px; }
-        </style>
-      </head>
-      <body>
-        <h1>${escapeHtml(title)}</h1>
-        <p>Надруковано: ${escapeHtml(new Date().toLocaleString("uk-UA"))}</p>
-        <section class="summary">
-          <div><span>Рейсів</span><strong>${escapeHtml(report.trips)}</strong></div>
-          <div><span>Доставок</span><strong>${escapeHtml(report.deliveries)}</strong></div>
-          <div><span>Кілометрів</span><strong>${escapeHtml(`${report.km} км`)}</strong></div>
-          <div><span>Пальне</span><strong>${escapeHtml(formatFuel(report.fuel))}</strong></div>
-          <div><span>Сума</span><strong>${escapeHtml(formatMoney(report.money))}</strong></div>
-        </section>
-        <table>
-          <thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead>
-          <tbody>${rowsHtml || `<tr><td colspan="${columns.length}">Детальні рейси для цього звіту відсутні.</td></tr>`}</tbody>
-        </table>
-      </body>
-    </html>`);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => printWindow.print(), 250);
+  setTimeout(() => window.print(), 100);
 }
 
 function setActiveCategory(category) {
