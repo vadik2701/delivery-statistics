@@ -1067,7 +1067,10 @@ function printPreparedSheet() {
     { once: true },
   );
 
-  setTimeout(() => window.print(), 100);
+  void printReportSheet.offsetHeight;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => window.print());
+  });
 }
 
 function printCompletedReport(report) {

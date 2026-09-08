@@ -537,6 +537,14 @@ td:nth-child(11) {
   display: none;
 }
 
+body.is-printing-report .print-report-sheet {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: -100000px;
+  width: 1120px;
+}
+
 .report-dialog::backdrop {
   background: rgba(29, 37, 34, 0.48);
 }
@@ -881,6 +889,8 @@ td:nth-child(11) {
 
   body.is-printing-report .print-report-sheet {
     display: block;
+    position: static;
+    left: auto;
     width: 100%;
   }
 
