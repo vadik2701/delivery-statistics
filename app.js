@@ -943,7 +943,7 @@ function buildPrintReportSheet(report) {
   const table = document.createElement("table");
   const header = document.createElement("thead");
   const headerRow = document.createElement("tr");
-  const columns = ["Дата", "Водій", "Авто", "Точка доставки", "Маршрут", "Старт", "Кінець", "Км", "Пальне", "Доставок", "Ціна", "Сума", "Нотатка"];
+  const columns = ["Дата", "Водій", "Авто", "Точка доставки", "Маршрут", "Старт", "Кінець", "Км", "Пальне", "Доставок", "Ціна / сума"];
   columns.forEach((label) => {
     const cell = document.createElement("th");
     cell.textContent = label;
@@ -964,9 +964,7 @@ function buildPrintReportSheet(report) {
       `${trip.km} км`,
       formatFuel(trip.fuel),
       trip.deliveries,
-      formatMoney(trip.rate),
-      formatMoney(trip.money),
-      trip.note || "-",
+      `${formatMoney(trip.rate)} / ${formatMoney(trip.money)}`,
     ].forEach((value) => {
       const cell = document.createElement("td");
       cell.textContent = value;
@@ -1020,7 +1018,7 @@ function buildJournalPrintSheet() {
   const table = document.createElement("table");
   const header = document.createElement("thead");
   const headerRow = document.createElement("tr");
-  const columns = ["Дата", "Водій", "Авто", "Точка доставки", "Маршрут", "Старт", "Кінець", "Км", "Пальне", "Доставок", "Ціна", "Сума", "Нотатка"];
+  const columns = ["Дата", "Водій", "Авто", "Точка доставки", "Маршрут", "Старт", "Кінець", "Км", "Пальне", "Доставок", "Ціна / сума"];
   columns.forEach((label) => {
     const cell = document.createElement("th");
     cell.textContent = label;
@@ -1041,9 +1039,7 @@ function buildJournalPrintSheet() {
       `${trip.km} км`,
       formatFuel(trip.fuel),
       trip.deliveries,
-      formatMoney(trip.rate),
-      formatMoney(trip.money),
-      trip.note || "-",
+      `${formatMoney(trip.rate)} / ${formatMoney(trip.money)}`,
     ].forEach((value) => {
       const cell = document.createElement("td");
       cell.textContent = value;

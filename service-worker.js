@@ -1,9 +1,9 @@
-const cacheName = "delivery-stats-v21";
+const cacheName = "delivery-stats-v22";
 const appShell = [
   "./",
   "./index.html",
-  "./styles.css?v=21",
-  "./app.js?v=21",
+  "./styles.css?v=22",
+  "./app.js?v=22",
   "./manifest.webmanifest",
   "./icon.svg",
 ];
