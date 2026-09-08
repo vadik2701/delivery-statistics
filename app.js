@@ -109,6 +109,7 @@ const completedReportDialog = document.querySelector("#completedReportDialog");
 const completedReportTitle = document.querySelector("#completedReportTitle");
 const completedReportContent = document.querySelector("#completedReportContent");
 const closeCompletedReport = document.querySelector("#closeCompletedReport");
+const printReportSheet = document.querySelector("#printReportSheet");
 
 const totals = {
   trips: document.querySelector("#totalTrips"),
@@ -903,22 +904,180 @@ function openCompletedReport(report) {
   }
 }
 
-function printCompletedReport(report) {
-  openCompletedReport(report);
+function buildPrintReportSheet(report) {
+  printReportSheet.innerHTML = "";
+
+  const title = document.createElement("h1");
+  title.textContent = `${formatSavedReportTitle(report)} — ${categoryName(report.category)}`;
+  const subtitle = document.createElement("p");
+  subtitle.textContent = `Надруковано: ${new Date().toLocaleString("uk-UA")}`;
+  printReportSheet.append(title, subtitle);
+
+  const summary = document.createElement("div");
+  summary.className = "completed-report-summary";
+  [
+    ["Рейсів", report.trips],
+    ["Доставок", report.deliveries],
+    ["Кілометрів", `${report.km} км`],
+    ["Пальне", formatFuel(report.fuel)],
+    ["Сума", formatMoney(report.money)],
+  ].forEach(([label, value]) => {
+    const item = document.createElement("div");
+    const labelElement = document.createElement("span");
+    labelElement.textContent = label;
+    const valueElement = document.createElement("strong");
+    valueElement.textContent = value;
+    item.append(labelElement, valueElement);
+    summary.append(item);
+  });
+  printReportSheet.append(summary);
+
+  const details = getReportDetails(report);
+  if (!details.length) {
+    const message = document.createElement("p");
+    message.textContent = "Детальні рейси для цього звіту відсутні.";
+    printReportSheet.append(message);
+    return;
+  }
+
+  const table = document.createElement("table");
+  const header = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  const columns = ["Дата", "Водій", "Авто", "Точка доставки", "Маршрут", "Старт", "Кінець", "Км", "Пальне", "Доставок", "Ціна", "Сума", "Нотатка"];
+  columns.forEach((label) => {
+    const cell = document.createElement("th");
+    cell.textContent = label;
+    headerRow.append(cell);
+  });
+  header.append(headerRow);
+  const body = document.createElement("tbody");
+  details.forEach((trip) => {
+    const row = document.createElement("tr");
+    [
+      trip.date,
+      trip.driver,
+      trip.vehicle,
+      trip.store,
+      trip.route || "-",
+      trip.kmStart ?? "-",
+      trip.kmEnd ?? "-",
+      `${trip.km} км`,
+      formatFuel(trip.fuel),
+      trip.deliveries,
+      formatMoney(trip.rate),
+      formatMoney(trip.money),
+      trip.note || "-",
+    ].forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.append(cell);
+    });
+    body.append(row);
+  });
+  table.append(header, body);
+  printReportSheet.append(table);
+}
+
+function buildJournalPrintSheet() {
+  const visibleTrips = getVisibleTrips();
+  const summary = summarizeTrips(visibleTrips);
+  printReportSheet.innerHTML = "";
+
+  const title = document.createElement("h1");
+  title.textContent = `Журнал доставок — ${categoryName(activeCategory)}`;
+  const subtitle = document.createElement("p");
+  const filter = monthFilter.value ? `Місяць: ${monthFilter.value}` : "Усі дати";
+  subtitle.textContent = `${filter}. Надруковано: ${new Date().toLocaleString("uk-UA")}`;
+  printReportSheet.append(title, subtitle);
+
+  const summaryElement = document.createElement("div");
+  summaryElement.className = "completed-report-summary";
+  [
+    ["Рейсів", summary.trips],
+    ["Доставок", summary.deliveries],
+    ["Кілометрів", `${summary.km} км`],
+    ["Пальне", formatFuel(summary.fuel)],
+    ["Сума", formatMoney(summary.money)],
+  ].forEach(([label, value]) => {
+    const item = document.createElement("div");
+    const labelElement = document.createElement("span");
+    labelElement.textContent = label;
+    const valueElement = document.createElement("strong");
+    valueElement.textContent = value;
+    item.append(labelElement, valueElement);
+    summaryElement.append(item);
+  });
+  printReportSheet.append(summaryElement);
+
+  const details = reportTripDetails(visibleTrips);
+  if (!details.length) {
+    const message = document.createElement("p");
+    message.textContent = "У поточному журналі немає рейсів для друку.";
+    printReportSheet.append(message);
+    return;
+  }
+
+  const table = document.createElement("table");
+  const header = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+  const columns = ["Дата", "Водій", "Авто", "Точка доставки", "Маршрут", "Старт", "Кінець", "Км", "Пальне", "Доставок", "Ціна", "Сума", "Нотатка"];
+  columns.forEach((label) => {
+    const cell = document.createElement("th");
+    cell.textContent = label;
+    headerRow.append(cell);
+  });
+  header.append(headerRow);
+  const body = document.createElement("tbody");
+  details.forEach((trip) => {
+    const row = document.createElement("tr");
+    [
+      trip.date,
+      trip.driver,
+      trip.vehicle,
+      trip.store,
+      trip.route || "-",
+      trip.kmStart ?? "-",
+      trip.kmEnd ?? "-",
+      `${trip.km} км`,
+      formatFuel(trip.fuel),
+      trip.deliveries,
+      formatMoney(trip.rate),
+      formatMoney(trip.money),
+      trip.note || "-",
+    ].forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.append(cell);
+    });
+    body.append(row);
+  });
+  table.append(header, body);
+  printReportSheet.append(table);
+}
+
+function printPreparedSheet() {
   document.body.classList.add("is-printing-report");
 
   window.addEventListener(
     "afterprint",
     () => {
       document.body.classList.remove("is-printing-report");
-      if (completedReportDialog.open) {
-        completedReportDialog.close();
-      }
+      printReportSheet.innerHTML = "";
     },
     { once: true },
   );
 
   setTimeout(() => window.print(), 100);
+}
+
+function printCompletedReport(report) {
+  buildPrintReportSheet(report);
+  printPreparedSheet();
+}
+
+function printJournal() {
+  buildJournalPrintSheet();
+  printPreparedSheet();
 }
 
 function setActiveCategory(category) {
@@ -1451,7 +1610,7 @@ saveWeeklyReport.addEventListener("click", finishWeek);
 savePeriodReport.addEventListener("click", savePeriod);
 closeCompletedReport.addEventListener("click", () => completedReportDialog.close());
 cancelEdit.addEventListener("click", resetForm);
-printStats.addEventListener("click", () => window.print());
+printStats.addEventListener("click", printJournal);
 importCsv.addEventListener("click", () => importCsvFile.click());
 importCsvFile.addEventListener("change", async () => {
   const [file] = importCsvFile.files;
